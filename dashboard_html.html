@@ -201,38 +201,34 @@ function parseRelatorio(rows) {
 }
 
 function parseCurva(rows) {
-  // Busca cabeçalho: "Data" ou "PREVISTO" na primeira coluna
-  let startRow = 0, colData = 0, colPrev = 1, colReal = 2;
-  for (let r = 0; r < Math.min(10, rows.length); r++) {
+  // Localiza cabeçalhos dinamicamente
+  let startRow = 1, colData = 0, colPrev = 1, colReal = 2, colTend = 3;
+  for (let r = 0; r < Math.min(6, rows.length); r++) {
     const row = rows[r];
     if (!row?.c) continue;
+    let found = false;
     for (let c = 0; c < row.c.length; c++) {
       const v = String(row.c[c]?.v ?? row.c[c]?.f ?? '').toLowerCase();
-      if (v.includes('previsto') || v.includes('acumulado')) {
-        startRow = r + 1;
-        colData = 0;
-        colPrev = c;
-        colReal = c + 1;
-        break;
-      }
+      if (v.includes('data') || v.includes('período')) { colData = c; found = true; }
+      if (v.includes('previsto'))  { colPrev = c; found = true; }
+      if (v.includes('realizado')) { colReal = c; found = true; }
+      if (v.includes('tend'))      { colTend = c; found = true; }
     }
-    if (startRow > 0) break;
+    if (found) { startRow = r + 1; break; }
   }
 
-  const labels = [], previsto = [], realizado = [];
+  const labels = [], previsto = [], realizado = [], tendencia = [];
   for (let r = startRow; r < rows.length; r++) {
     const dateVal = cv(rows, r, colData);
-    const prevVal = cv(rows, r, colPrev);
-    if (dateVal == null && prevVal == null) continue;
-    const lbl = fmtDateShort(dateVal) || String(dateVal ?? '');
+    if (dateVal == null) continue;
+    const lbl = fmtDateShort(dateVal) || String(dateVal);
     if (!lbl) continue;
-    const pv = toNum(prevVal);
-    const rv = cv(rows, r, colReal);
     labels.push(lbl);
-    previsto.push(pv > 0 ? pv : null);
-    realizado.push(rv != null ? toNum(rv) : null);
+    previsto.push( cv(rows,r,colPrev)  != null ? toNum(cv(rows,r,colPrev))  : null);
+    realizado.push(cv(rows,r,colReal)  != null ? toNum(cv(rows,r,colReal))  : null);
+    tendencia.push(cv(rows,r,colTend)  != null ? toNum(cv(rows,r,colTend))  : null);
   }
-  return { labels, previsto, realizado };
+  return { labels, previsto, realizado, tendencia };
 }
 
 function render(d, curva, ts) {
@@ -303,8 +299,9 @@ function render(d, curva, ts) {
     <div class="card-full">
       <div class="ct">Curva S — Avanço Físico Acumulado</div>
       <div class="curva-leg">
-        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>% Previsto Acumulado</div>
-        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981"></div>% Realizado Acumulado</div>
+        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>Previsto Acumulado</div>
+        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div>
+        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div>
       </div>
       <div style="position:relative;height:260px">
         <canvas id="curvaChart" role="img" aria-label="Curva S — Avanço físico acumulado previsto vs realizado"></canvas>
@@ -394,28 +391,29 @@ function render(d, curva, ts) {
         labels: curva.labels,
         datasets: [
           {
-            label: '% Previsto Acumulado',
+            label: 'Previsto Acumulado',
             data: curva.previsto,
             borderColor: '#2563eb',
-            backgroundColor: 'rgba(37,99,235,0.08)',
             borderWidth: 2,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            tension: 0.3,
-            fill: false,
-            spanGaps: true,
+            pointRadius: 0, pointHoverRadius: 4,
+            tension: 0.3, fill: false, spanGaps: true,
           },
           {
-            label: '% Realizado Acumulado',
+            label: 'Realizado Acumulado',
             data: curva.realizado,
+            borderColor: '#f59e0b',
+            borderWidth: 2.5,
+            pointRadius: 0, pointHoverRadius: 4,
+            tension: 0.3, fill: false, spanGaps: false,
+          },
+          {
+            label: 'Tendência Acumulada',
+            data: curva.tendencia,
             borderColor: '#10b981',
-            backgroundColor: 'rgba(16,185,129,0.08)',
+            borderDash: [6, 3],
             borderWidth: 2,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            tension: 0.3,
-            fill: false,
-            spanGaps: true,
+            pointRadius: 0, pointHoverRadius: 4,
+            tension: 0.3, fill: false, spanGaps: true,
           }
         ]
       },
