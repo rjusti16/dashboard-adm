@@ -94,12 +94,16 @@ function cv(rows, r, c) {
   try { const x = rows[r]?.c?.[c]; return x?.v ?? x?.f ?? null; } catch { return null; }
 }
 
-// Converte valor gviz para número percentual (0.81 → 81, "00%" → 0)
+// Converte valor gviz para número percentual
+// Lida com vírgula como decimal (padrão br): "81,0%" → 81  |  0.81 → 81
 function toNum(v, fb) {
   if (fb === undefined) fb = 0;
   if (v == null) return fb;
   if (typeof v === 'number') return v >= -1 && v <= 1 ? +(v * 100).toFixed(2) : v;
-  return parseFloat(String(v).replace(/[^0-9.\-]/g, '')) || fb;
+  let s = String(v).trim().replace(/%/g, '');          // remove %
+  s = s.replace(/,(\d{1,2})$/, '.$1');                  // vírgula decimal → ponto ("81,0" → "81.0")
+  s = s.replace(/[^0-9.\-]/g, '');                      // remove restante
+  return parseFloat(s) || fb;
 }
 
 function fmtDate(v) {
@@ -247,7 +251,7 @@ function render(d, ts) {
       <div class="card">
         <div class="ct">Distribuição de desvios</div>
         <div class="legend">
-          ${d.devs.map(v=>`<div class="leg"><div class="leg-dot" style="background:${v.cor}"></div>${v.nm} — ${Math.round(v.qt/d.totDv*100)}%</div>`).join('')}
+          ${d.devs.map(v=>`<div class="leg"><div class="leg-dot" style="background:${v.cor}"></div>${v.nm} — <strong>${v.qt}</strong> (${Math.round(v.qt/d.totDv*100)}%)</div>`).join('')}
         </div>
         <div style="position:relative;height:190px">
           <canvas id="donut" role="img" aria-label="Distribuição de desvios por responsável"></canvas>
