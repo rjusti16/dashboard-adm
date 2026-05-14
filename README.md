@@ -233,7 +233,7 @@ function render(d,curva,ts) {
     return '<tr class="data-row" onclick="toggleObs('+i+')">'
       +'<td class="mono">'+t.edt+'</td>'
       +'<td style="max-width:220px;color:#111">'+t.ativ+'</td>'
-      +'<td style="text-align:center"><span class="badge '+badgeFn(t.real)+'">'+t.real.toFixed(0)+'%</span></td>'
+      +'<td style="text-align:center"><span class="badge '+(t.dev<0?'bd':'bg')+'">'+t.real.toFixed(0)+'%</span></td>'
       +'<td style="text-align:center">'+t.prev.toFixed(0)+'%</td>'
       +'<td style="text-align:center" class="td">'+t.dev.toFixed(0)+'%</td>'
       +'<td style="text-align:center;white-space:nowrap">'+t.term+'</td>'
