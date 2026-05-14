@@ -131,9 +131,9 @@ function fmtDateShort(v) {
   return String(v).slice(0,8);
 }
 
-async function fetchGviz(sheetParam) {
+async function fetchGviz(sheetId, sheetParam) {
   const param = /^\d+$/.test(sheetParam) ? `gid=${sheetParam}` : `sheet=${encodeURIComponent(sheetParam)}`;
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&${param}`;
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&${param}`;
   const res = await fetch(url, { cache: 'no-store' });
   const txt = await res.text();
   const js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/)?.[1];
@@ -201,33 +201,62 @@ function parseRelatorio(rows) {
 }
 
 function parseCurva(rows) {
-  // Localiza cabeçalhos dinamicamente
-  let startRow = 1, colData = 0, colPrev = 1, colReal = 2, colTend = 3;
-  for (let r = 0; r < Math.min(6, rows.length); r++) {
-    const row = rows[r];
-    if (!row?.c) continue;
-    let found = false;
-    for (let c = 0; c < row.c.length; c++) {
-      const v = String(row.c[c]?.v ?? row.c[c]?.f ?? '').toLowerCase();
-      if (v.includes('data') || v.includes('período')) { colData = c; found = true; }
-      if (v.includes('previsto'))  { colPrev = c; found = true; }
-      if (v.includes('realizado')) { colReal = c; found = true; }
-      if (v.includes('tend'))      { colTend = c; found = true; }
-    }
-    if (found) { startRow = r + 1; break; }
+  // Planilha horizontal: datas em COLUNAS, séries em LINHAS
+  // Busca as linhas pelas labels na coluna A (índice 0)
+  let prevRowIdx = -1, realRowIdx = -1, tendRowIdx = -1, dateRowIdx = -1;
+
+  for (let r = 0; r < rows.length; r++) {
+    if (!rows[r]?.c) continue;
+    const a = String(rows[r].c[0]?.v ?? rows[r].c[0]?.f ?? '').toLowerCase();
+    if (a.includes('prev') && a.includes('acum')) prevRowIdx = r;
+    if (a.includes('real') && a.includes('acum')) realRowIdx = r;
+    if (a.includes('tend') && a.includes('acum')) tendRowIdx = r;
   }
 
-  const labels = [], previsto = [], realizado = [], tendencia = [];
-  for (let r = startRow; r < rows.length; r++) {
-    const dateVal = cv(rows, r, colData);
-    if (dateVal == null) continue;
-    const lbl = fmtDateShort(dateVal) || String(dateVal);
-    if (!lbl) continue;
-    labels.push(lbl);
-    previsto.push( cv(rows,r,colPrev)  != null ? toNum(cv(rows,r,colPrev))  : null);
-    realizado.push(cv(rows,r,colReal)  != null ? toNum(cv(rows,r,colReal))  : null);
-    tendencia.push(cv(rows,r,colTend)  != null ? toNum(cv(rows,r,colTend))  : null);
+  // Linha de datas: localiza pela presença de muitos valores tipo "dd-mmm"
+  for (let r = 0; r < rows.length; r++) {
+    if (!rows[r]?.c) continue;
+    let cnt = 0;
+    for (const cell of rows[r].c) {
+      const v = String(cell?.v ?? cell?.f ?? '');
+      if (/\d{1,2}[\-][a-zA-Záéí]{2,4}/.test(v)) cnt++;
+    }
+    if (cnt >= 5) { dateRowIdx = r; break; }
   }
+
+  if (prevRowIdx < 0 || dateRowIdx < 0) {
+    console.warn('Curva S: linhas não localizadas. prevRow:', prevRowIdx, 'dateRow:', dateRowIdx);
+    return { labels: [], previsto: [], realizado: [], tendencia: [] };
+  }
+
+  const dateRow = rows[dateRowIdx];
+  const prevRow = rows[prevRowIdx];
+  const realRow = realRowIdx >= 0 ? rows[realRowIdx] : null;
+  const tendRow = tendRowIdx >= 0 ? rows[tendRowIdx] : null;
+  const maxCol  = Math.max(dateRow.c?.length || 0, prevRow.c?.length || 0);
+
+  const labels = [], previsto = [], realizado = [], tendencia = [];
+
+  for (let c = 1; c < maxCol; c++) {
+    // Precisa ter data na coluna
+    const dv = dateRow.c?.[c]?.v ?? dateRow.c?.[c]?.f;
+    if (!dv) continue;
+    const dateStr = String(dv).toLowerCase().replace(/\.$/, '').trim();
+    if (!/\d/.test(dateStr)) continue;
+
+    // Precisa ter valor de previsto
+    const pv = prevRow.c?.[c]?.v ?? prevRow.c?.[c]?.f;
+    if (pv == null) continue;
+
+    labels.push(dateStr);
+    previsto.push(toNum(pv));
+    const rv = realRow?.c?.[c]?.v ?? realRow?.c?.[c]?.f;
+    realizado.push(rv != null ? toNum(rv) : null);
+    const tv = tendRow?.c?.[c]?.v ?? tendRow?.c?.[c]?.f;
+    tendencia.push(tv != null ? toNum(tv) : null);
+  }
+
+  console.log('Curva S:', labels.length, 'pontos |', labels[0], '→', labels[labels.length-1]);
   return { labels, previsto, realizado, tendencia };
 }
 
@@ -303,7 +332,7 @@ function render(d, curva, ts) {
         <div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div>
         <div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div>
       </div>
-      <div style="position:relative;height:260px">
+      <div style="position:relative;height:300px">
         <canvas id="curvaChart" role="img" aria-label="Curva S — Avanço físico acumulado previsto vs realizado"></canvas>
       </div>
     </div>
@@ -380,11 +409,6 @@ function render(d, curva, ts) {
   // ── Curva S chart ────────────────────────────
   if (chartCurva) chartCurva.destroy();
   if (curva && curva.labels.length > 0) {
-    // Thin out labels if too many (show every N-th)
-    const maxLabels = 20;
-    const step = Math.ceil(curva.labels.length / maxLabels);
-    const tickLabels = curva.labels.map((l, i) => i % step === 0 ? l : '');
-
     chartCurva = new Chart(document.getElementById('curvaChart'), {
       type: 'line',
       data: {
@@ -431,21 +455,30 @@ function render(d, curva, ts) {
         },
         scales: {
           x: {
+            title: { display: true, text: 'Data', font: { size: 11, weight: '500' }, color: '#6b7280', padding: { top: 8 } },
             ticks: {
               font: { size: 10 },
               color: '#9ca3af',
-              maxRotation: 45,
-              callback: (val, i) => tickLabels[i],
-              autoSkip: false,
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 9,
             },
             grid: { color: '#f3f4f6' }
           },
           y: {
             min: 0,
             max: 100,
+            title: {
+              display: true,
+              text: '% Acumulado',
+              font: { size: 11, weight: '500' },
+              color: '#6b7280',
+              padding: { bottom: 8 }
+            },
             ticks: {
               font: { size: 10 },
               color: '#9ca3af',
+              stepSize: 10,
               callback: v => v + '%'
             },
             grid: { color: '#f3f4f6' }
@@ -479,8 +512,8 @@ async function init() {
   const ts = new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   try {
     const [rowsRel, rowsCurva] = await Promise.all([
-      fetchGviz(GID),
-      fetchGviz(SHEET_CURVA).catch(() => null)
+      fetchGviz(SHEET_ID, GID),
+      fetchGviz(SHEET_ID_CURVA, SHEET_CURVA).catch(e => { console.warn('Curva:', e); return null; })
     ]);
     const dadosRel   = parseRelatorio(rowsRel);
     const dadosCurva = rowsCurva ? parseCurva(rowsCurva) : null;
