@@ -77,7 +77,7 @@ footer{text-align:center;padding:16px 0;font-size:10px;color:#9ca3af}
 var SHEET_ID      = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB'; // Relatório Gerencial
 var GID           = '775705987';
 var SHEET_ID_CURVA= '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim'; // Curva S
-var SHEET_CURVA   = 'Curva Fis.';
+var GID_CURVA     = '0'; // primeira aba (Curva Fis.)
 // ╚══════════════════════════════════════════════════════╝
 
 var chartDonut = null;
@@ -258,7 +258,7 @@ function init() {
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
     fetchGviz(SHEET_ID, GID),
-    fetchGviz(SHEET_ID_CURVA, SHEET_CURVA).catch(function(e){console.warn('Curva S:',e.message);return null;})
+    fetchGviz(SHEET_ID_CURVA, GID_CURVA).catch(function(e){console.warn('Curva S:',e.message);return null;})
   ]).then(function(results){
     var d=parseRelatorio(results[0]);
     var curva=results[1]?parseCurva(results[1]):null;
