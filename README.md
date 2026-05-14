@@ -252,7 +252,7 @@ function render(d,curva,ts) {
     '<div class="hdr">'
     // Logo Irmãos Passaúra (Contratada)
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'
-    +'<img src="https://drive.google.com/uc?export=view&id=1Kg5kw4t_Lg0x8RmQnyZmZEiQVkcT0k4S" alt="Irmãos Passaúra" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
+    +'<img src="./Logo_Passaura.png" alt="Irmãos Passaúra" onerror="this.src=\'./Logo_Passaura.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
     +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratada</span>'
     +'</div>'
     // Título central
@@ -264,7 +264,7 @@ function render(d,curva,ts) {
     // Logo ADM do Brasil (Contratante) + data/autor/botão
     +'<div class="hdr-r">'
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">'
-    +'<img src="https://drive.google.com/uc?export=view&id=1bs-bhEC77WIgQxle_Rnpr7UzCH5mN4GS" alt="ADM do Brasil" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
+    +'<img src="./Logo_Adm.png" alt="ADM do Brasil" onerror="this.src=\'./Logo_Adm.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
     +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratante</span>'
     +'</div>'
     +'<div class="hdr-date">Atualizado: '+ts+'</div>'
