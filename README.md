@@ -71,38 +71,39 @@ footer{text-align:center;padding:16px 0;font-size:10px;color:#9ca3af}
 <body>
 <div class="wrap"><div id="app"><div class="loading">⏳ Carregando dados da planilha...</div></div></div>
 <script>
-// ╔══════════════════════════════════════════╗
-//   CONFIGURAÇÃO
-// ╠══════════════════════════════════════════╣
-const SHEET_ID    = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB';
-const GID         = '775705987';          // aba: Relatório Gerencial
-const SHEET_CURVA = 'Curva Fis.';         // aba: Curva Fis.
-// ╚══════════════════════════════════════════╝
+// ╔══════════════════════════════════════════════════════╗
+//   CONFIGURAÇÃO — altere aqui se os IDs mudarem
+// ╠══════════════════════════════════════════════════════╣
+var SHEET_ID      = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB'; // Relatório Gerencial
+var GID           = '775705987';
+var SHEET_ID_CURVA= '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim'; // Curva S
+var SHEET_CURVA   = 'Curva Fis.';
+// ╚══════════════════════════════════════════════════════╝
 
-let chartDonut = null;
-let chartCurva = null;
+var chartDonut = null;
+var chartCurva = null;
 
 function findPos(rows, text, exact) {
-  const s = text.toLowerCase().trim();
-  for (let r = 0; r < rows.length; r++) {
-    if (!rows[r]?.c) continue;
-    for (let c = 0; c < rows[r].c.length; c++) {
-      const v = String(rows[r].c[c]?.v ?? rows[r].c[c]?.f ?? '').toLowerCase().trim();
-      if (exact ? v === s : v.includes(s)) return [r, c];
+  var s = text.toLowerCase().trim();
+  for (var r = 0; r < rows.length; r++) {
+    if (!rows[r] || !rows[r].c) continue;
+    for (var c = 0; c < rows[r].c.length; c++) {
+      var v = String(rows[r].c[c] && (rows[r].c[c].v != null ? rows[r].c[c].v : rows[r].c[c].f) || '').toLowerCase().trim();
+      if (exact ? v === s : v.indexOf(s) >= 0) return [r, c];
     }
   }
   return null;
 }
 
 function cv(rows, r, c) {
-  try { const x = rows[r]?.c?.[c]; return x?.v ?? x?.f ?? null; } catch { return null; }
+  try { var x = rows[r] && rows[r].c && rows[r].c[c]; return x ? (x.v != null ? x.v : x.f) : null; } catch(e) { return null; }
 }
 
 function toNum(v, fb) {
   if (fb === undefined) fb = 0;
   if (v == null) return fb;
   if (typeof v === 'number') return v >= -1 && v <= 1 ? +(v * 100).toFixed(2) : v;
-  let s = String(v).trim().replace(/%/g, '');
+  var s = String(v).trim().replace(/%/g, '');
   s = s.replace(/,(\d{1,2})$/, '.$1');
   s = s.replace(/[^0-9.\-]/g, '');
   return parseFloat(s) || fb;
@@ -111,416 +112,158 @@ function toNum(v, fb) {
 function fmtDate(v) {
   if (!v) return '—';
   if (typeof v === 'string') {
-    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
-    if (m) return `${String(m[3]).padStart(2,'0')}/${String(+m[2]+1).padStart(2,'0')}`;
-    const p = v.slice(0,10).split('-');
-    if (p.length === 3) return `${p[2]}/${p[1]}`;
+    var m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if (m) return ('0'+m[3]).slice(-2) + '/' + ('0'+(+m[2]+1)).slice(-2);
+    var p = v.slice(0,10).split('-');
+    if (p.length === 3) return p[2]+'/'+p[1];
   }
   return String(v).slice(0,10);
 }
 
-function fmtDateShort(v) {
-  if (!v) return '';
-  if (typeof v === 'string') {
-    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
-    if (m) {
-      const months = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-      return `${String(m[3]).padStart(2,'0')}-${months[+m[2]]}`;
-    }
-  }
-  return String(v).slice(0,8);
-}
-
-async function fetchGviz(sheetId, sheetParam) {
-  const param = /^\d+$/.test(sheetParam) ? `gid=${sheetParam}` : `sheet=${encodeURIComponent(sheetParam)}`;
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&${param}`;
-  const res = await fetch(url, { cache: 'no-store' });
-  const txt = await res.text();
-  const js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/)?.[1];
-  if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
-  return JSON.parse(js).table.rows;
+function fetchGviz(sheetId, sheetParam) {
+  var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
+  var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  return fetch(url, {cache:'no-store'}).then(function(res){ return res.text(); }).then(function(txt){
+    var js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
+    if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
+    return JSON.parse(js[1]).table.rows;
+  });
 }
 
 function parseRelatorio(rows) {
-  let rPct=82, pPct=79.5, dPct=2.55, totAc=72, atrs=26;
-  const concPos = findPos(rows, 'CONCLU');
+  var rPct=82, pPct=79.5, dPct=2.55, totAc=72, atrs=26;
+  var concPos = findPos(rows, 'CONCLU');
   if (concPos) {
-    const [lr, lc] = concPos;
-    const dr = lr - 1;
+    var lr = concPos[0], lc = concPos[1], dr = lr - 1;
     if (dr >= 0) {
-      const v1=cv(rows,dr,lc), v2=cv(rows,dr,lc+1),
-            v3=cv(rows,dr,lc+2), v4=cv(rows,dr,lc+3), v5=cv(rows,dr,lc+4);
-      if (v1!=null) rPct  = toNum(v1, rPct);
-      if (v2!=null) pPct  = toNum(v2, pPct);
-      if (v3!=null) dPct  = toNum(v3, dPct);
-      if (v4!=null && !isNaN(+v4)) totAc = +v4;
-      if (v5!=null && !isNaN(+v5)) atrs  = +v5;
+      var v1=cv(rows,dr,lc), v2=cv(rows,dr,lc+1), v3=cv(rows,dr,lc+2), v4=cv(rows,dr,lc+3), v5=cv(rows,dr,lc+4);
+      if (v1!=null) rPct=toNum(v1,rPct);
+      if (v2!=null) pPct=toNum(v2,pPct);
+      if (v3!=null) dPct=toNum(v3,dPct);
+      if (v4!=null && !isNaN(+v4)) totAc=+v4;
+      if (v5!=null && !isNaN(+v5)) atrs=+v5;
     }
   }
-
-  const devs = [
-    {nm:'ADM do Brasil',         qt:7,  cor:'#dc2626'},
-    {nm:'Irmãos Passaúra',       qt:19, cor:'#2563eb'},
-    {nm:'ADM + Irmãos Passaúra', qt:0,  cor:'#9ca3af'},
+  var devs = [
+    {nm:'ADM do Brasil',qt:7,cor:'#dc2626'},
+    {nm:'Irmãos Passaúra',qt:19,cor:'#2563eb'},
+    {nm:'ADM + Irmãos Passaúra',qt:0,cor:'#9ca3af'}
   ];
-  const qtdPos = findPos(rows, 'QTD DESVIOS');
+  var qtdPos = findPos(rows, 'QTD DESVIOS');
   if (qtdPos) {
-    const [hr, hc] = qtdPos;
-    const nc = hc - 1;
-    for (let i = 0; i < 3; i++) {
-      const nm = String(cv(rows, hr+1+i, nc) ?? '').trim();
-      const qt = cv(rows, hr+1+i, hc);
-      if (nm && qt != null && !nm.toLowerCase().includes('total')) {
-        devs[i] = {...devs[i], nm, qt: Number(qt)};
-      }
+    var hr=qtdPos[0], hc=qtdPos[1], nc=hc-1;
+    for (var i=0;i<3;i++) {
+      var nm=String(cv(rows,hr+1+i,nc)||'').trim(), qt=cv(rows,hr+1+i,hc);
+      if (nm && qt!=null && nm.toLowerCase().indexOf('total')<0) devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};
     }
   }
-  const totDv = devs.reduce((a,d)=>a+Number(d.qt),0) || 1;
-
-  const top10 = [];
-  const edtPos = findPos(rows, 'edt', true);
+  var totDv = devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
+  var top10=[], edtPos=findPos(rows,'edt',true);
   if (edtPos) {
-    const [hr, hc] = edtPos;
-    for (let j = 1; j <= 10; j++) {
-      const edt = cv(rows, hr+j, hc);
-      if (!edt) continue;
-      top10.push({
-        edt:  String(edt),
-        ativ: String(cv(rows,hr+j,hc+1) ?? '—'),
-        real: toNum(cv(rows,hr+j,hc+2)),
-        prev: toNum(cv(rows,hr+j,hc+3)),
-        dev:  toNum(cv(rows,hr+j,hc+4)),
-        term: fmtDate(cv(rows,hr+j,hc+5)),
-        area: String(cv(rows,hr+j,hc+6) ?? '—'),
-        resp: String(cv(rows,hr+j,hc+7) ?? '—'),
-        obs:  String(cv(rows,hr+j,hc+8) ?? '—'),
-      });
+    var er=edtPos[0], ec=edtPos[1];
+    for (var j=1;j<=10;j++) {
+      var edt=cv(rows,er+j,ec); if (!edt) continue;
+      top10.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:String(cv(rows,er+j,ec+8)||'—')});
     }
   }
-  return { rPct, pPct, dPct, totAc, atrs, devs, totDv, top10 };
+  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top10:top10};
 }
 
 function parseCurva(rows) {
-  // Planilha horizontal: datas em COLUNAS, séries em LINHAS
-  // Busca as linhas pelas labels na coluna A (índice 0)
-  let prevRowIdx = -1, realRowIdx = -1, tendRowIdx = -1, dateRowIdx = -1;
-
-  for (let r = 0; r < rows.length; r++) {
-    if (!rows[r]?.c) continue;
-    const a = String(rows[r].c[0]?.v ?? rows[r].c[0]?.f ?? '').toLowerCase();
-    if (a.includes('prev') && a.includes('acum')) prevRowIdx = r;
-    if (a.includes('real') && a.includes('acum')) realRowIdx = r;
-    if (a.includes('tend') && a.includes('acum')) tendRowIdx = r;
+  var prevRowIdx=-1, realRowIdx=-1, tendRowIdx=-1, dateRowIdx=-1;
+  for (var r=0;r<rows.length;r++) {
+    if (!rows[r]||!rows[r].c) continue;
+    var a=String((rows[r].c[0]&&(rows[r].c[0].v!=null?rows[r].c[0].v:rows[r].c[0].f))||'').toLowerCase();
+    if (a.indexOf('prev')>=0&&a.indexOf('acum')>=0) prevRowIdx=r;
+    if (a.indexOf('real')>=0&&a.indexOf('acum')>=0) realRowIdx=r;
+    if (a.indexOf('tend')>=0&&a.indexOf('acum')>=0) tendRowIdx=r;
   }
-
-  // Linha de datas: localiza pela presença de muitos valores tipo "dd-mmm"
-  for (let r = 0; r < rows.length; r++) {
-    if (!rows[r]?.c) continue;
-    let cnt = 0;
-    for (const cell of rows[r].c) {
-      const v = String(cell?.v ?? cell?.f ?? '');
-      if (/\d{1,2}[\-][a-zA-Záéí]{2,4}/.test(v)) cnt++;
+  for (var r2=0;r2<rows.length;r2++) {
+    if (!rows[r2]||!rows[r2].c) continue;
+    var cnt=0;
+    for (var ci=0;ci<rows[r2].c.length;ci++) {
+      var v=String((rows[r2].c[ci]&&(rows[r2].c[ci].v!=null?rows[r2].c[ci].v:rows[r2].c[ci].f))||'');
+      if (/\d{1,2}-[a-zA-Z]{2,4}/.test(v)) cnt++;
     }
-    if (cnt >= 5) { dateRowIdx = r; break; }
+    if (cnt>=5){dateRowIdx=r2;break;}
   }
-
-  if (prevRowIdx < 0 || dateRowIdx < 0) {
-    console.warn('Curva S: linhas não localizadas. prevRow:', prevRowIdx, 'dateRow:', dateRowIdx);
-    return { labels: [], previsto: [], realizado: [], tendencia: [] };
-  }
-
-  const dateRow = rows[dateRowIdx];
-  const prevRow = rows[prevRowIdx];
-  const realRow = realRowIdx >= 0 ? rows[realRowIdx] : null;
-  const tendRow = tendRowIdx >= 0 ? rows[tendRowIdx] : null;
-  const maxCol  = Math.max(dateRow.c?.length || 0, prevRow.c?.length || 0);
-
-  const labels = [], previsto = [], realizado = [], tendencia = [];
-
-  for (let c = 1; c < maxCol; c++) {
-    // Precisa ter data na coluna
-    const dv = dateRow.c?.[c]?.v ?? dateRow.c?.[c]?.f;
+  if (prevRowIdx<0||dateRowIdx<0) return {labels:[],previsto:[],realizado:[],tendencia:[]};
+  var dateRow=rows[dateRowIdx], prevRow=rows[prevRowIdx];
+  var realRow=realRowIdx>=0?rows[realRowIdx]:null;
+  var tendRow=tendRowIdx>=0?rows[tendRowIdx]:null;
+  var maxCol=Math.max(dateRow.c?dateRow.c.length:0, prevRow.c?prevRow.c.length:0);
+  var labels=[],previsto=[],realizado=[],tendencia=[];
+  for (var c2=1;c2<maxCol;c2++) {
+    var dCell=dateRow.c&&dateRow.c[c2], dv=dCell?(dCell.v!=null?dCell.v:dCell.f):null;
     if (!dv) continue;
-    const dateStr = String(dv).toLowerCase().replace(/\.$/, '').trim();
-    if (!/\d/.test(dateStr)) continue;
-
-    // Precisa ter valor de previsto
-    const pv = prevRow.c?.[c]?.v ?? prevRow.c?.[c]?.f;
-    if (pv == null) continue;
-
-    labels.push(dateStr);
+    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim();
+    if (!/\d/.test(ds)) continue;
+    var pCell=prevRow.c&&prevRow.c[c2], pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null;
+    if (pv==null) continue;
+    labels.push(ds);
     previsto.push(toNum(pv));
-    const rv = realRow?.c?.[c]?.v ?? realRow?.c?.[c]?.f;
-    realizado.push(rv != null ? toNum(rv) : null);
-    const tv = tendRow?.c?.[c]?.v ?? tendRow?.c?.[c]?.f;
-    tendencia.push(tv != null ? toNum(tv) : null);
+    var rCell=realRow&&realRow.c&&realRow.c[c2], rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
+    realizado.push(rv!=null?toNum(rv):null);
+    var tCell=tendRow&&tendRow.c&&tendRow.c[c2], tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
+    tendencia.push(tv!=null?toNum(tv):null);
   }
-
-  console.log('Curva S:', labels.length, 'pontos |', labels[0], '→', labels[labels.length-1]);
-  return { labels, previsto, realizado, tendencia };
+  return {labels:labels,previsto:previsto,realizado:realizado,tendencia:tendencia};
 }
 
 function render(d, curva, ts) {
-  const ahead = d.dPct >= 0;
-  const badgeFn = r => r === 0 ? 'bd' : r < 50 ? 'bw' : 'bg';
+  var ahead = d.dPct >= 0;
+  var badgeFn = function(r){return r===0?'bd':r<50?'bw':'bg';};
+  document.getElementById('app').innerHTML = '<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div><h1>Relatório Gerencial — Montagem Mecânica</h1><div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div></div><div class="hdr-r"><div class="hdr-date">Atualizado: '+ts+'</div><div class="hdr-author">Raphael Justi Medeiros</div><button class="btn-ref" onclick="init()">↺ Atualizar</button></div></div>'
+  +'<div class="kpi-grid"><div class="kpi g"><div class="kpi-lbl">% Realizado</div><div class="kpi-val">'+d.rPct.toFixed(1)+'%</div></div><div class="kpi n"><div class="kpi-lbl">% Previsto</div><div class="kpi-val">'+d.pPct.toFixed(1)+'%</div></div><div class="kpi '+(ahead?'g':'r')+'"><div class="kpi-lbl">Desvio</div><div class="kpi-val">'+(ahead?'+':'')+d.dPct.toFixed(2)+' p.p.</div></div><div class="kpi b"><div class="kpi-lbl">Atividades</div><div class="kpi-val">'+d.totAc+'</div></div><div class="kpi r"><div class="kpi-lbl">Atrasadas</div><div class="kpi-val">'+d.atrs+'</div></div></div>'
+  +'<div class="row2"><div class="card"><div class="ct">Avanço físico</div><div class="pb-row"><div class="pb-lbl"><span>Realizado</span><span>'+d.rPct.toFixed(1)+'%</span></div><div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.rPct,100)+'%;background:#10b981"></div></div></div><div class="pb-row"><div class="pb-lbl"><span>Previsto</span><span>'+d.pPct.toFixed(1)+'%</span></div><div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.pPct,100)+'%;background:#9ca3af"></div></div></div><div class="st-box '+(ahead?'ok':'bad')+'">'+(ahead?'✔ Projeto adiantado':'⚠ Projeto atrasado')+' — '+(ahead?'+':'')+d.dPct.toFixed(2)+' p.p. '+(ahead?'acima':'abaixo')+' do previsto</div><div style="height:18px"></div><div class="ct">Desvios por responsável</div>'+d.devs.map(function(v){return '<div class="dv-row"><div class="dv-nm">'+v.nm+'</div><div class="dv-track"><div class="dv-fill" style="width:'+Math.round(v.qt/d.totDv*100)+'%;background:'+v.cor+'"></div></div><div class="dv-cnt">'+v.qt+'</div><div class="dv-pct">'+Math.round(v.qt/d.totDv*100)+'%</div></div>';}).join('')+'</div>'
+  +'<div class="card"><div class="ct">Distribuição de desvios</div><div class="legend">'+d.devs.map(function(v){return '<div class="leg"><div class="leg-dot" style="background:'+v.cor+'"></div>'+v.nm+' — <strong>'+v.qt+'</strong> ('+Math.round(v.qt/d.totDv*100)+'%)</div>';}).join('')+'</div><div style="position:relative;height:190px"><canvas id="donut"></canvas></div><div style="margin-top:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:12px;font-weight:600;color:#991b1b">Total: '+d.totDv+' desvios identificados</div></div></div>'
+  +'<div class="card-full"><div class="ct">Curva S — Avanço Físico Acumulado</div><div class="curva-leg"><div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>Previsto Acumulado</div><div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div><div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div></div><div style="position:relative;height:300px"><canvas id="curvaChart"></canvas></div></div>'
+  +'<div class="card-full"><div class="ct">Top 10 — atividades críticas (maior desvio)</div>'+(d.top10.length===0?'<p style="font-size:12px;color:#9ca3af;text-align:center;padding:20px">Dados não encontrados.</p>':'<div class="tbl-wrap"><table><thead><tr><th>EDT</th><th>Atividade</th><th style="text-align:center">Real</th><th style="text-align:center">Prev.</th><th style="text-align:center">Desvio</th><th style="text-align:center">Término</th><th>Área</th><th>Responsável</th><th>Observação</th></tr></thead><tbody>'+d.top10.map(function(t){return '<tr><td class="mono">'+t.edt+'</td><td style="max-width:180px;color:#111">'+t.ativ+'</td><td style="text-align:center"><span class="badge '+badgeFn(t.real)+'">'+t.real.toFixed(0)+'%</span></td><td style="text-align:center">'+t.prev.toFixed(0)+'%</td><td style="text-align:center" class="td">'+t.dev.toFixed(0)+'%</td><td style="text-align:center">'+t.term+'</td><td>'+t.area+'</td><td>'+t.resp+'</td><td>'+t.obs+'</td></tr>';}).join('')+'</tbody></table></div>')+'</div>'
+  +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid"><div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div><div class="rs-item"><div class="rs-bar" style="background:#ef4444;min-height:44px"></div><div><div class="rs-t">Pontos de atenção</div><div class="rs-p">'+d.atrs+' atividades atrasadas ('+Math.round(d.atrs/d.totAc*100)+'% do total).</div></div></div><div class="rs-item"><div class="rs-bar" style="background:#f59e0b;min-height:44px"></div><div><div class="rs-t">Principais causas</div><div class="rs-p">Aguardando adequação de piso/civil (ADM Brasil). Peças e materiais não entregues no site (Elevador 2531, correntes).</div></div></div><div class="rs-item"><div class="rs-bar" style="background:#2563eb;min-height:44px"></div><div><div class="rs-t">Ação requerida</div><div class="rs-p">Priorizar liberação de frentes civis, entrega do Elevador 2531 e materiais pendentes no site.</div></div></div></div></div>'
+  +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
-  document.getElementById('app').innerHTML = `
-    <div class="hdr">
-      <div>
-        <div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div>
-        <h1>Relatório Gerencial — Montagem Mecânica</h1>
-        <div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div>
-      </div>
-      <div class="hdr-r">
-        <div class="hdr-date">Atualizado: ${ts}</div>
-        <div class="hdr-author">Raphael Justi Medeiros</div>
-        <button class="btn-ref" onclick="init()">↺ Atualizar</button>
-      </div>
-    </div>
-
-    <div class="kpi-grid">
-      <div class="kpi g"><div class="kpi-lbl">% Realizado</div><div class="kpi-val">${d.rPct.toFixed(1)}%</div></div>
-      <div class="kpi n"><div class="kpi-lbl">% Previsto</div><div class="kpi-val">${d.pPct.toFixed(1)}%</div></div>
-      <div class="kpi ${ahead?'g':'r'}"><div class="kpi-lbl">Desvio</div><div class="kpi-val">${ahead?'+':''}${d.dPct.toFixed(2)} p.p.</div></div>
-      <div class="kpi b"><div class="kpi-lbl">Atividades</div><div class="kpi-val">${d.totAc}</div></div>
-      <div class="kpi r"><div class="kpi-lbl">Atrasadas</div><div class="kpi-val">${d.atrs}</div></div>
-    </div>
-
-    <div class="row2">
-      <div class="card">
-        <div class="ct">Avanço físico</div>
-        <div class="pb-row">
-          <div class="pb-lbl"><span>Realizado</span><span>${d.rPct.toFixed(1)}%</span></div>
-          <div class="pb-track"><div class="pb-fill" style="width:${Math.min(d.rPct,100)}%;background:#10b981"></div></div>
-        </div>
-        <div class="pb-row">
-          <div class="pb-lbl"><span>Previsto</span><span>${d.pPct.toFixed(1)}%</span></div>
-          <div class="pb-track"><div class="pb-fill" style="width:${Math.min(d.pPct,100)}%;background:#9ca3af"></div></div>
-        </div>
-        <div class="st-box ${ahead?'ok':'bad'}">
-          ${ahead?'✔ Projeto adiantado':'⚠ Projeto atrasado'} — ${ahead?'+':''}${d.dPct.toFixed(2)} p.p. ${ahead?'acima':'abaixo'} do previsto
-        </div>
-        <div style="height:18px"></div>
-        <div class="ct">Desvios por responsável</div>
-        ${d.devs.map(v=>`
-          <div class="dv-row">
-            <div class="dv-nm">${v.nm}</div>
-            <div class="dv-track"><div class="dv-fill" style="width:${Math.round(v.qt/d.totDv*100)}%;background:${v.cor}"></div></div>
-            <div class="dv-cnt">${v.qt}</div>
-            <div class="dv-pct">${Math.round(v.qt/d.totDv*100)}%</div>
-          </div>`).join('')}
-      </div>
-
-      <div class="card">
-        <div class="ct">Distribuição de desvios</div>
-        <div class="legend">
-          ${d.devs.map(v=>`<div class="leg"><div class="leg-dot" style="background:${v.cor}"></div>${v.nm} — <strong>${v.qt}</strong> (${Math.round(v.qt/d.totDv*100)}%)</div>`).join('')}
-        </div>
-        <div style="position:relative;height:190px">
-          <canvas id="donut" role="img" aria-label="Distribuição de desvios por responsável"></canvas>
-        </div>
-        <div style="margin-top:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:12px;font-weight:600;color:#991b1b">
-          Total: ${d.totDv} desvios identificados
-        </div>
-      </div>
-    </div>
-
-    <div class="card-full">
-      <div class="ct">Curva S — Avanço Físico Acumulado</div>
-      <div class="curva-leg">
-        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>Previsto Acumulado</div>
-        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div>
-        <div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div>
-      </div>
-      <div style="position:relative;height:300px">
-        <canvas id="curvaChart" role="img" aria-label="Curva S — Avanço físico acumulado previsto vs realizado"></canvas>
-      </div>
-    </div>
-
-    <div class="card-full">
-      <div class="ct">Top 10 — atividades críticas (maior desvio)</div>
-      ${d.top10.length === 0
-        ? '<p style="font-size:12px;color:#9ca3af;text-align:center;padding:20px">Dados não encontrados. Verifique o Console (F12).</p>'
-        : `<div class="tbl-wrap"><table>
-          <thead><tr>
-            <th>EDT</th><th>Atividade</th>
-            <th style="text-align:center">Real</th><th style="text-align:center">Prev.</th>
-            <th style="text-align:center">Desvio</th><th style="text-align:center">Término</th>
-            <th>Área</th><th>Responsável</th><th>Observação</th>
-          </tr></thead>
-          <tbody>
-            ${d.top10.map(t=>`<tr>
-              <td class="mono">${t.edt}</td>
-              <td style="max-width:200px;color:#111">${t.ativ}</td>
-              <td style="text-align:center"><span class="badge ${badgeFn(t.real)}">${t.real.toFixed(0)}%</span></td>
-              <td style="text-align:center">${t.prev.toFixed(0)}%</td>
-              <td style="text-align:center" class="td">${t.dev.toFixed(0)}%</td>
-              <td style="text-align:center;white-space:nowrap">${t.term}</td>
-              <td style="font-size:10.5px">${t.area}</td>
-              <td style="white-space:nowrap">${t.resp}</td>
-              <td style="font-size:10.5px">${t.obs}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table></div>`}
-    </div>
-
-    <div class="card-full">
-      <div class="ct">Resumo executivo</div>
-      <div class="rs-grid">
-        <div class="rs-item">
-          <div class="rs-bar" style="background:#10b981;min-height:44px"></div>
-          <div><div class="rs-t">Situação geral</div>
-          <div class="rs-p">Avanço de ${d.rPct.toFixed(1)}%, superando em ${d.dPct.toFixed(2)} p.p. o previsto (${d.pPct.toFixed(1)}%). Projeto adiantado.</div></div>
-        </div>
-        <div class="rs-item">
-          <div class="rs-bar" style="background:#ef4444;min-height:44px"></div>
-          <div><div class="rs-t">Pontos de atenção</div>
-          <div class="rs-p">${d.atrs} atividades atrasadas (${Math.round(d.atrs/d.totAc*100)}% do total) — 7 sob responsabilidade da ADM do Brasil e ${d.devs[1]?.qt??0} de Irmãos Passaúra.</div></div>
-        </div>
-        <div class="rs-item">
-          <div class="rs-bar" style="background:#f59e0b;min-height:44px"></div>
-          <div><div class="rs-t">Principais causas</div>
-          <div class="rs-p">Aguardando adequação de piso/civil (ADM Brasil). Peças e materiais não entregues no site (Elevador 2531, correntes).</div></div>
-        </div>
-        <div class="rs-item">
-          <div class="rs-bar" style="background:#2563eb;min-height:44px"></div>
-          <div><div class="rs-t">Ação requerida</div>
-          <div class="rs-p">Priorizar liberação de frentes civis, entrega do Elevador 2531 e materiais pendentes no site.</div></div>
-        </div>
-      </div>
-    </div>
-
-    <footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>`;
-
-  // ── Donut chart ──────────────────────────────
   if (chartDonut) chartDonut.destroy();
-  chartDonut = new Chart(document.getElementById('donut'), {
-    type: 'doughnut',
-    data: {
-      labels: d.devs.map(v=>v.nm),
-      datasets: [{ data: d.devs.map(v=>v.qt), backgroundColor: d.devs.map(v=>v.cor), borderWidth:0, hoverOffset:6 }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false, cutout:'66%',
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw} desvios`}} }
-    }
-  });
+  chartDonut = new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
 
-  // ── Curva S chart ────────────────────────────
   if (chartCurva) chartCurva.destroy();
   if (curva && curva.labels.length > 0) {
-    chartCurva = new Chart(document.getElementById('curvaChart'), {
-      type: 'line',
-      data: {
-        labels: curva.labels,
-        datasets: [
-          {
-            label: 'Previsto Acumulado',
-            data: curva.previsto,
-            borderColor: '#2563eb',
-            borderWidth: 2,
-            pointRadius: 0, pointHoverRadius: 4,
-            tension: 0.3, fill: false, spanGaps: true,
-          },
-          {
-            label: 'Realizado Acumulado',
-            data: curva.realizado,
-            borderColor: '#f59e0b',
-            borderWidth: 2.5,
-            pointRadius: 0, pointHoverRadius: 4,
-            tension: 0.3, fill: false, spanGaps: false,
-          },
-          {
-            label: 'Tendência Acumulada',
-            data: curva.tendencia,
-            borderColor: '#10b981',
-            borderDash: [6, 3],
-            borderWidth: 2,
-            pointRadius: 0, pointHoverRadius: 4,
-            tension: 0.3, fill: false, spanGaps: true,
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: c => ` ${c.dataset.label}: ${c.raw != null ? c.raw.toFixed(1)+'%' : '—'}`
-            }
-          }
-        },
-        scales: {
-          x: {
-            title: { display: true, text: 'Data', font: { size: 11, weight: '500' }, color: '#6b7280', padding: { top: 8 } },
-            ticks: {
-              font: { size: 10 },
-              color: '#9ca3af',
-              maxRotation: 0,
-              autoSkip: true,
-              maxTicksLimit: 9,
-            },
-            grid: { color: '#f3f4f6' }
-          },
-          y: {
-            min: 0,
-            max: 100,
-            title: {
-              display: true,
-              text: '% Acumulado',
-              font: { size: 11, weight: '500' },
-              color: '#6b7280',
-              padding: { bottom: 8 }
-            },
-            ticks: {
-              font: { size: 10 },
-              color: '#9ca3af',
-              stepSize: 10,
-              callback: v => v + '%'
-            },
-            grid: { color: '#f3f4f6' }
-          }
+    chartCurva = new Chart(document.getElementById('curvaChart'),{
+      type:'line',
+      data:{labels:curva.labels,datasets:[
+        {label:'Previsto Acumulado',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true},
+        {label:'Realizado Acumulado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:false},
+        {label:'Tendência Acumulada',data:curva.tendencia,borderColor:'#10b981',borderDash:[6,3],borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1)+'%':'—');}}}},
+        scales:{
+          x:{title:{display:true,text:'Data',font:{size:11,weight:'500'},color:'#6b7280',padding:{top:8}},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},
+          y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11,weight:'500'},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}
         }
       }
     });
   } else {
-    const cv2 = document.getElementById('curvaChart');
-    if (cv2) cv2.parentElement.innerHTML = '<p style="text-align:center;padding:40px;color:#9ca3af;font-size:12px">Dados da Curva S não encontrados. Verifique se a aba "Curva Fis." está pública.</p>';
+    var el=document.getElementById('curvaChart'); if(el) el.parentElement.innerHTML='<p style="text-align:center;padding:40px;color:#9ca3af;font-size:12px">Curva S não carregada. Verifique se a planilha "'+SHEET_ID_CURVA+'" está pública.</p>';
   }
 }
 
 function showError(msg) {
-  const ts = new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('app').innerHTML = `
-    <div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div>
-      <h1>Relatório Gerencial — Montagem Mecânica</h1></div>
-      <div class="hdr-r"><div class="hdr-date">${ts}</div>
-        <button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div>
-    <div class="err-box">
-      <strong>⚠ Não foi possível carregar os dados.</strong><br>
-      Erro: ${msg}<br><br>
-      <strong>Solução:</strong> Compartilhar → <strong>"Qualquer pessoa com o link"</strong> → <strong>Leitor</strong> → Salvar
-    </div>`;
+  var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'<br><br><strong>Solução:</strong> Compartilhar → <strong>"Qualquer pessoa com o link"</strong> → <strong>Leitor</strong> → Salvar</div>';
 }
 
-async function init() {
-  const btn = document.querySelector('.btn-ref');
-  if (btn) { btn.disabled=true; btn.textContent='↺ Carregando...'; }
-  const ts = new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  try {
-    const [rowsRel, rowsCurva] = await Promise.all([
-      fetchGviz(SHEET_ID, GID),
-      fetchGviz(SHEET_ID_CURVA, SHEET_CURVA).catch(e => { console.warn('Curva:', e); return null; })
-    ]);
-    const dadosRel   = parseRelatorio(rowsRel);
-    const dadosCurva = rowsCurva ? parseCurva(rowsCurva) : null;
-    render(dadosRel, dadosCurva, ts);
-  } catch(e) {
-    showError(e.message);
-  }
+function init() {
+  var btn=document.querySelector('.btn-ref');
+  if (btn){btn.disabled=true;btn.textContent='↺ Carregando...';}
+  var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  Promise.all([
+    fetchGviz(SHEET_ID, GID),
+    fetchGviz(SHEET_ID_CURVA, SHEET_CURVA).catch(function(e){console.warn('Curva S:',e.message);return null;})
+  ]).then(function(results){
+    var d=parseRelatorio(results[0]);
+    var curva=results[1]?parseCurva(results[1]):null;
+    render(d, curva, ts);
+  }).catch(function(e){ showError(e.message); });
 }
 
 init();
