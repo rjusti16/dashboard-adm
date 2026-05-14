@@ -168,7 +168,7 @@ function parseRelatorio(rows) {
   var top10=[],edtPos=findPos(rows,'edt',true);
   if (edtPos){
     var er=edtPos[0],ec=edtPos[1];
-    for (var j=1;j<=10;j++){
+    for (var j=1;j<=20;j++){
       var edt=cv(rows,er+j,ec);if (!edt) continue;
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
@@ -302,7 +302,7 @@ function render(d,curva,ts) {
     +'<div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div>'
     +'</div><div style="position:relative;height:300px"><canvas id="curvaChart"></canvas></div></div>'
 
-    +'<div class="card-full"><div class="ct">Top 10 — atividades críticas (maior desvio) <span style="font-size:10px;font-weight:400;color:#9ca3af">— clique na linha para ver a observação</span></div>'
+    +'<div class="card-full"><div class="ct">Top 20 — atividades críticas (maior desvio) <span style="font-size:10px;font-weight:400;color:#9ca3af">— clique na linha para ver a observação</span></div>'
     +(d.top10.length===0
       ?'<p style="font-size:12px;color:#9ca3af;text-align:center;padding:20px">Dados não encontrados.</p>'
       :'<div class="tbl-wrap"><table><thead><tr>'
