@@ -226,7 +226,7 @@ function parseCurva(rows) {
 
 function render(d,curva,ts) {
   var ahead=d.dPct>=0;
-  var badgeFn=function(r){return r===0?'bd':r<50?'bw':'bg';};
+  var badgeFn=function(dev){return dev>=0?'bg':'bd';};
 
   var topRows=d.top10.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
