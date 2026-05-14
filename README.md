@@ -51,7 +51,7 @@ thead th{padding:8px 10px;text-align:left;color:#6b7280;font-weight:600;border-b
 tbody td{padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;color:#374151}
 tbody tr.data-row:hover{background:#f0f6ff}
 tbody tr.data-row{cursor:pointer;transition:background .15s}
-tbody tr.obs-row td{background:#f0f6ff;border-left:3px solid #2563eb;font-size:12px;padding:10px 16px}
+tbody tr.obs-row td{background:#f0f6ff;border-left:3px solid #2563eb;font-size:12px;padding:10px 16px;word-break:break-word;white-space:normal;line-height:1.6}
 tbody tr:last-child td{border-bottom:none}
 .mono{font-family:monospace;font-size:10px;color:#6b7280}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
@@ -170,7 +170,11 @@ function parseRelatorio(rows) {
     var er=edtPos[0],ec=edtPos[1];
     for (var j=1;j<=10;j++){
       var edt=cv(rows,er+j,ec);if (!edt) continue;
-      top10.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:String(cv(rows,er+j,ec+8)||'—')});
+      var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
+      var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
+      var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
+      var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
+      top10.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
     }
   }
   return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top10:top10};
@@ -245,13 +249,26 @@ function render(d,curva,ts) {
   }).join('');
 
   document.getElementById('app').innerHTML=
-    '<div class="hdr"><div>'
+    '<div class="hdr">'
+    // Logo Irmãos Passaúra (Contratada)
+    +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'
+    +'<img src="https://drive.google.com/uc?export=view&id=1Kg5kw4t_Lg0x8RmQnyZmZEiQVkcT0k4S" alt="Irmãos Passaúra" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
+    +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratada</span>'
+    +'</div>'
+    // Título central
+    +'<div style="flex:1;padding:0 18px">'
     +'<div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div>'
     +'<h1>Relatório Gerencial — Montagem Mecânica</h1>'
     +'<div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div>'
-    +'</div><div class="hdr-r">'
+    +'</div>'
+    // Logo ADM do Brasil (Contratante) + data/autor/botão
+    +'<div class="hdr-r">'
+    +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">'
+    +'<img src="https://drive.google.com/uc?export=view&id=1bs-bhEC77WIgQxle_Rnpr7UzCH5mN4GS" alt="ADM do Brasil" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
+    +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratante</span>'
+    +'</div>'
     +'<div class="hdr-date">Atualizado: '+ts+'</div>'
-    +'<div class="hdr-author">Rafael Justi Medeiros</div>'
+    +'<div class="hdr-author">Raphael Justi Medeiros</div>'
     +'<button class="btn-ref" onclick="init()">↺ Atualizar</button>'
     +'</div></div>'
 
@@ -328,7 +345,7 @@ function render(d,curva,ts) {
 
 function showError(msg) {
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'<br><br><strong>Solução:</strong> Compartilhar → <strong>"Qualquer pessoa com o link"</strong> → <strong>Leitor</strong> → Salvar</div>';
+  document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><div class="hdr-author">Raphael Justi Medeiros</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'<br><br><strong>Solução:</strong> Compartilhar → <strong>"Qualquer pessoa com o link"</strong> → <strong>Leitor</strong> → Salvar</div>';
 }
 
 function init() {
