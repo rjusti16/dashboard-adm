@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="google" content="notranslate">
+<meta http-equiv="Content-Language" content="pt-BR">
 <title>Dashboard Gerencial — ADM do Brasil | Irmãos Passaúra</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -111,13 +113,16 @@ function toNum(v, fb) {
 
 function fmtDate(v) {
   if (!v) return '—';
-  if (typeof v === 'string') {
-    var m = v.match(/Date\((\d+),(\d+),(\d+)/);
-    if (m) return ('0'+m[3]).slice(-2) + '/' + ('0'+(+m[2]+1)).slice(-2);
-    var p = v.slice(0,10).split('-');
-    if (p.length === 3) return p[2]+'/'+p[1];
+  var s = String(v).trim();
+  // Remove prefixo de dia da semana: "Ter ", "Qua ", "Sex ", "Sexo ", etc.
+  s = s.replace(/^[A-ZÁ-Úa-záéíóúà-ü]{2,5}\.?\s+/, '');
+  if (/Date\(/.test(s)) {
+    var m = s.match(/Date\((\d+),(\d+),(\d+)/);
+    if (m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
   }
-  return String(v).slice(0,10);
+  var p = s.slice(0,10).split('-');
+  if (p.length === 3) return p[2]+'/'+p[1];
+  return s.slice(0,5);
 }
 
 function fetchGviz(sheetId, sheetParam) {
