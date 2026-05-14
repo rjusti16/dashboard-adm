@@ -171,42 +171,74 @@ function parseRelatorio(rows) {
 
 function parseCurva(rows) {
   var prevRowIdx=-1, realRowIdx=-1, tendRowIdx=-1, dateRowIdx=-1;
+
+  // Busca linhas pelos labels na coluna A
   for (var r=0;r<rows.length;r++) {
     if (!rows[r]||!rows[r].c) continue;
-    var a=String((rows[r].c[0]&&(rows[r].c[0].v!=null?rows[r].c[0].v:rows[r].c[0].f))||'').toLowerCase();
+    var cell0=rows[r].c[0];
+    var a=String(cell0?(cell0.v!=null?cell0.v:(cell0.f||'')):'' ).toLowerCase();
     if (a.indexOf('prev')>=0&&a.indexOf('acum')>=0) prevRowIdx=r;
     if (a.indexOf('real')>=0&&a.indexOf('acum')>=0) realRowIdx=r;
     if (a.indexOf('tend')>=0&&a.indexOf('acum')>=0) tendRowIdx=r;
   }
+
+  // Busca linha de datas: qualquer linha com 5+ células com padrão de data
+  // Verifica tanto .v (string) quanto .f (formatado) para capturar datas Excel
   for (var r2=0;r2<rows.length;r2++) {
     if (!rows[r2]||!rows[r2].c) continue;
     var cnt=0;
     for (var ci=0;ci<rows[r2].c.length;ci++) {
-      var v=String((rows[r2].c[ci]&&(rows[r2].c[ci].v!=null?rows[r2].c[ci].v:rows[r2].c[ci].f))||'');
-      if (/\d{1,2}-[a-zA-Z]{2,4}/.test(v)) cnt++;
+      var cell=rows[r2].c[ci];
+      if (!cell) continue;
+      // Usa .f (formatted) primeiro — é onde a data aparece como "31-out."
+      var vf=String(cell.f!=null?cell.f:(cell.v!=null?cell.v:'')).toLowerCase();
+      if (/\d{1,2}[\-\/][a-záéíóú]{2,4}/.test(vf)||/\d{1,2}[\-\/][a-z]{2,4}/.test(vf)) cnt++;
     }
     if (cnt>=5){dateRowIdx=r2;break;}
   }
-  if (prevRowIdx<0||dateRowIdx<0) return {labels:[],previsto:[],realizado:[],tendencia:[]};
+
+  if (prevRowIdx<0||dateRowIdx<0){
+    console.warn('Curva S: prevRow='+prevRowIdx+' dateRow='+dateRowIdx+' de '+rows.length+' linhas');
+    // Debug: mostra as primeiras linhas
+    for(var di=0;di<Math.min(20,rows.length);di++){
+      if(rows[di]&&rows[di].c){
+        var c0=rows[di].c[0];
+        var lbl=c0?(c0.v!=null?c0.v:c0.f):'(vazia)';
+        if(lbl) console.log('Linha '+di+': "'+lbl+'"');
+      }
+    }
+    return {labels:[],previsto:[],realizado:[],tendencia:[]};
+  }
+
   var dateRow=rows[dateRowIdx], prevRow=rows[prevRowIdx];
   var realRow=realRowIdx>=0?rows[realRowIdx]:null;
   var tendRow=tendRowIdx>=0?rows[tendRowIdx]:null;
-  var maxCol=Math.max(dateRow.c?dateRow.c.length:0, prevRow.c?prevRow.c.length:0);
+  var maxCol=Math.max(dateRow.c?dateRow.c.length:0,prevRow.c?prevRow.c.length:0);
+
   var labels=[],previsto=[],realizado=[],tendencia=[];
-  for (var c2=1;c2<maxCol;c2++) {
-    var dCell=dateRow.c&&dateRow.c[c2], dv=dCell?(dCell.v!=null?dCell.v:dCell.f):null;
-    if (!dv) continue;
+  for(var c2=1;c2<maxCol;c2++){
+    var dCell=dateRow.c&&dateRow.c[c2];
+    if(!dCell) continue;
+    // Usa .f para datas formatadas (ex: "31-out."), fallback para .v
+    var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null);
+    if(!dv) continue;
     var ds=String(dv).toLowerCase().replace(/\.$/,'').trim();
-    if (!/\d/.test(ds)) continue;
-    var pCell=prevRow.c&&prevRow.c[c2], pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null;
-    if (pv==null) continue;
+    if(!/\d/.test(ds)) continue;
+
+    var pCell=prevRow.c&&prevRow.c[c2];
+    var pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null;
+    if(pv==null) continue;
+
     labels.push(ds);
     previsto.push(toNum(pv));
-    var rCell=realRow&&realRow.c&&realRow.c[c2], rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
+    var rCell=realRow&&realRow.c&&realRow.c[c2];
+    var rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
     realizado.push(rv!=null?toNum(rv):null);
-    var tCell=tendRow&&tendRow.c&&tendRow.c[c2], tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
+    var tCell=tendRow&&tendRow.c&&tendRow.c[c2];
+    var tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
     tendencia.push(tv!=null?toNum(tv):null);
   }
+  console.log('Curva S: '+labels.length+' pontos | '+labels[0]+' → '+labels[labels.length-1]);
   return {labels:labels,previsto:previsto,realizado:realizado,tendencia:tendencia};
 }
 
