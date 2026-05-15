@@ -501,8 +501,14 @@ function render(d, curva, concl, ts) {
             var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
             if (h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
             if (hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
-            if (hl.indexOf('anterior')>=0) return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+val+'</span></td>';
-            if (hl.indexOf('atual')>=0) return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+val+'</span></td>';
+            if (hl.indexOf('anterior')>=0) {
+              var pa=parseFloat(val)||0; if(pa>0&&pa<=1)pa=Math.round(pa*100); else pa=Math.round(pa);
+              return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+pa+'%</span></td>';
+            }
+            if (hl.indexOf('atual')>=0) {
+              var pu=parseFloat(val)||0; if(pu>0&&pu<=1)pu=Math.round(pu*100); else pu=Math.round(pu);
+              return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+pu+'%</span></td>';
+            }
             return '<td style="'+s+'">'+val+'</td>';
           }).join('')
           +'</tr>';
