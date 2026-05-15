@@ -32,8 +32,11 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;color:#1a
 .ct{font-size:13px;font-weight:600;color:#111;margin-bottom:16px}
 .pb-row{margin-bottom:12px}
 .pb-lbl{display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px}
-.pb-track{height:10px;background:#f3f4f6;border-radius:5px;overflow:hidden}
-.pb-fill{height:100%;border-radius:5px}
+.pb-track{height:12px;background:#f3f4f6;border-radius:6px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.08)}
+.pb-fill{height:100%;border-radius:6px;position:relative;overflow:hidden;animation:pbfill 1.2s cubic-bezier(.4,0,.2,1) both}
+.pb-fill::after{content:'';position:absolute;top:0;left:-100%;width:55%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.32),transparent);animation:pbshine 2.8s ease-in-out infinite}
+@keyframes pbfill{from{width:0%}}
+@keyframes pbshine{0%{left:-100%}55%{left:150%}100%{left:150%}}
 .st-box{margin-top:14px;padding:10px 14px;border-radius:8px;font-size:12px;font-weight:500}
 .st-box.ok{background:#d1fae5;color:#065f46}.st-box.bad{background:#fee2e2;color:#991b1b}
 .dv-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
