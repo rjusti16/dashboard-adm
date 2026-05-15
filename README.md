@@ -142,7 +142,28 @@ function fetchGviz(sheetId,sheetParam) {
 }
 
 function parseRelatorio(rows) {
-  var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26;
+  var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='';
+  // Busca "Data de Atualização" nas primeiras linhas
+  for (var dr2=0;dr2<Math.min(8,rows.length);dr2++){
+    if (!rows[dr2]||!rows[dr2].c) continue;
+    for (var dc=0;dc<rows[dr2].c.length;dc++){
+      var cell2=rows[dr2].c[dc];
+      var val2=String(cell2?(cell2.v!=null?cell2.v:(cell2.f||'')):'' );
+      if (val2.toLowerCase().indexOf('atualiza')>=0){
+        // Extrai só a data do texto (ex: "Data de Atualização: 15/05/2026")
+        var dateMatch=val2.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/);
+        dataAtual=dateMatch?dateMatch[1]:val2.replace(/.*:\s*/,'').trim();
+        break;
+      }
+      // Ou tenta a célula vizinha que pode ter só a data
+      if (val2.toLowerCase()==='data de atualização'||val2.toLowerCase()==='data atualização'){
+        var nextCell=rows[dr2].c[dc+1];
+        if (nextCell) dataAtual=String(nextCell.v!=null?nextCell.v:(nextCell.f||'')).trim();
+        break;
+      }
+    }
+    if (dataAtual) break;
+  }
   var concPos=findPos(rows,'CONCLU');
   if (concPos){
     var lr=concPos[0],lc=concPos[1],dr=lr-1;
@@ -177,7 +198,7 @@ function parseRelatorio(rows) {
       top10.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
     }
   }
-  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top10:top10};
+  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top10:top10,dataAtual:dataAtual};
 }
 
 function parseCurva(rows) {
@@ -254,6 +275,7 @@ function render(d,curva,ts) {
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'
     +'<img src="./Logo_Passaura.png" alt="Irmãos Passaúra" onerror="this.src=\'./Logo_Passaura.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
     +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratada</span>'
+    +(d.dataAtual?'<span style="font-size:10px;font-weight:500;color:#fff;opacity:.9;margin-top:4px">Data: '+d.dataAtual+'</span>':'')
     +'</div>'
     // Título central
     +'<div style="flex:1;padding:0 18px">'
