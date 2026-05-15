@@ -481,6 +481,34 @@ function render(d, curva, concl, ts) {
 
     +(concl&&concl.rows&&concl.rows.length>0?
       '<div class="card-full">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+      +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+      +(concl.total?'<span style="background:#d1fae5;border-radius:8px;padding:4px 14px;font-size:12px;font-weight:600;color:#065f46">Total: '+concl.total+'</span>':'')
+      +(concl.periodo?'<span style="background:#f0f9ff;border-radius:8px;padding:4px 14px;font-size:11px;color:#0369a1">'+concl.periodo+'</span>':'')
+      +'</div></div>'
+      +'<div class="tbl-wrap"><table><thead><tr>'
+      +concl.headers.map(function(h){
+        var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
+        return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
+      }).join('')
+      +'</tr></thead><tbody>'
+      +concl.rows.map(function(row){
+        return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
+          +concl.headers.map(function(h,i){
+            var val=row[i]||'—',hl=h.toLowerCase();
+            var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
+            if (h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
+            if (hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
+            if (hl.indexOf('anterior')>=0){var pa=parseFloat(val)||0;if(pa>0&&pa<=1)pa=Math.round(pa*100);else pa=Math.round(pa);return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+pa+'%</span></td>';}
+            if (hl.indexOf('atual')>=0){var pu=parseFloat(val)||0;if(pu>0&&pu<=1)pu=Math.round(pu*100);else pu=Math.round(pu);return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+pu+'%</span></td>';}
+            if (hl.indexOf('in')>=0||hl.indexOf('rmino')>=0) return '<td style="'+s+'white-space:nowrap">'+val+'</td>';
+            return '<td style="'+s+'">'+val+'</td>';
+          }).join('')+'</tr>';
+      }).join('')
+      +'</tbody></table></div></div>'
+    :'')
+      '<div class="card-full">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
       +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
       +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
