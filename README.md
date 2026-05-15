@@ -316,8 +316,9 @@ function parseConcluidas(rows) {
 
 // ── Render ───────────────────────────
 function parseConcluidas(rows) {
-  var result = {total:'', periodo:'', headers:[], headerIdx:[], rows:[]};
-  var headerRowIdx = -1;
+  var result = {total:'', periodo:'', headers:['#','EDT','Atividade','HH Prev.','% Anterior','% Atual','Início','Término Real'], rows:[]};
+  var headerRowIdx = -1, startCol = -1;
+
   for (var r = 0; r < rows.length; r++) {
     if (!rows[r]||!rows[r].c) continue;
     var cells = rows[r].c;
@@ -325,6 +326,8 @@ function parseConcluidas(rows) {
       return c ? String(c.v!=null?c.v:(c.f||'')).trim() : '';
     });
     var rowStr = rowText.join('|').toLowerCase();
+
+    // Total e Período
     if (rowStr.indexOf('total de atividades')>=0) {
       for (var ci=0;ci<rowText.length;ci++) {
         if (rowText[ci].toLowerCase().indexOf('total de atividades')>=0) {
@@ -334,23 +337,30 @@ function parseConcluidas(rows) {
     }
     if (rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0) {
       for (var ci2=0;ci2<rowText.length;ci2++) {
-        var rv=rowText[ci2].toLowerCase();
-        if (rv.indexOf('per')>=0&&rv.indexOf('nali')>=0) {
+        var rv2=rowText[ci2].toLowerCase();
+        if (rv2.indexOf('per')>=0&&rv2.indexOf('nali')>=0) {
           result.periodo = rowText[ci2+1]||rowText[ci2+2]||''; break;
         }
       }
     }
+
+    // Localiza cabeçalho (linha com # e EDT)
     if (rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0) {
       headerRowIdx = r;
       for (var hi=0;hi<rowText.length;hi++) {
-        if (rowText[hi]) { result.headers.push(rowText[hi]); result.headerIdx.push(hi); }
+        if (rowText[hi]==='#') { startCol=hi; break; }
       }
       continue;
     }
-    if (headerRowIdx>=0&&r>headerRowIdx) {
+
+    // Lê dados — 8 colunas a partir de startCol
+    if (headerRowIdx>=0&&r>headerRowIdx&&startCol>=0) {
       if (!rowText.join('').trim()) continue;
       if (rowStr.indexOf('legenda')>=0||rowStr.indexOf('relat')>=0) break;
-      var rowData = result.headerIdx.map(function(idx){ return rowText[idx]||''; });
+      var rowData=[];
+      for (var di=startCol;di<startCol+8;di++) {
+        rowData.push(rowText[di]||'');
+      }
       if (rowData.filter(function(v){return v!=='';}).length>=2) result.rows.push(rowData);
     }
   }
