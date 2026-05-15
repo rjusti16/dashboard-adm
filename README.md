@@ -84,7 +84,6 @@ var SHEET_ID       = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB';
 var GID            = '775705987';
 var SHEET_ID_CURVA = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA      = '0';
-var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
 
 var chartDonut = null;
 var chartCurva = null;
@@ -135,18 +134,14 @@ function fmtDate(v) {
   return s.slice(0,5);
 }
 
-function fetchGviz(sheetId, sheetParam) {
-  var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
-  var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
-  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  var timer = controller ? setTimeout(function(){ controller.abort(); }, 12000) : null;
-  return fetch(url, {cache:'no-store', signal: controller ? controller.signal : undefined})
-    .then(function(res){ if(timer) clearTimeout(timer); return res.text(); })
-    .then(function(txt){
-      var js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
-      if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
-      return JSON.parse(js[1]).table.rows;
-    });
+function fetchGviz(sheetId,sheetParam) {
+  var param=/^\d+$/.test(sheetParam)?'gid='+sheetParam:'sheet='+encodeURIComponent(sheetParam);
+  var url='https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  return fetch(url,{cache:'no-store'}).then(function(res){return res.text();}).then(function(txt){
+    var js=txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
+    if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
+    return JSON.parse(js[1]).table.rows;
+  });
 }
 
 function parseRelatorio(rows) {
@@ -209,57 +204,7 @@ function parseRelatorio(rows) {
   return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top10:top10,dataAtual:dataAtual};
 }
 
-function parseConcluidas(rows) {
-  var result = { total:'', periodo:'', headers:[], rows:[] };
-  var headerRowIdx = -1;
-
-  for (var r = 0; r < rows.length; r++) {
-    if (!rows[r]||!rows[r].c) continue;
-    var cells = rows[r].c;
-
-    var rowStr = cells.map(function(c){
-      return c ? String(c.v!=null?c.v:(c.f||'')).trim() : '';
-    }).join('|').toLowerCase();
-
-    // Resumo
-    if (rowStr.indexOf('total de atividades') >= 0) {
-      for (var c=0;c<cells.length;c++) {
-        var v=String(cells[c]?(cells[c].v!=null?cells[c].v:(cells[c].f||'')):'' ).toLowerCase();
-        if (v.indexOf('total de atividades')>=0) {
-          var n=cells[c+1]||cells[c+2];
-          if(n) result.total=String(n.v!=null?n.v:(n.f||'')).trim();
-        }
-      }
-    }
-    if (rowStr.indexOf('per')>=0 && rowStr.indexOf('nalise')>=0) {
-      for (var c2=0;c2<cells.length;c2++) {
-        var v2=String(cells[c2]?(cells[c2].v!=null?cells[c2].v:(cells[c2].f||'')):'' ).toLowerCase();
-        if (v2.indexOf('per')>=0&&v2.indexOf('nali')>=0) {
-          var n2=cells[c2+1]||cells[c2+2];
-          if(n2) result.periodo=String(n2.v!=null?n2.v:(n2.f||'')).trim();
-        }
-      }
-    }
-
-    // Cabeçalho da tabela
-    if (rowStr.indexOf('edt')>=0 && rowStr.indexOf('atividade')>=0 && headerRowIdx<0) {
-      headerRowIdx = r;
-      result.headers = cells.map(function(c){
-        return c ? String(c.v!=null?c.v:(c.f||'')).trim() : '';
-      }).filter(function(h){ return h!==''; });
-      continue;
-    }
-
-    // Linhas de dados
-    if (headerRowIdx>=0 && r>headerRowIdx) {
-      var vals = cells.map(function(c){ return c?String(c.v!=null?c.v:(c.f||'')).trim():''; });
-      if (!vals.join('').trim()) continue;
-      if (vals.join('').toLowerCase().indexOf('legenda')>=0) break;
-      if (vals.filter(function(v){ return v!==''; }).length >= 2) result.rows.push(vals);
-    }
-  }
-  return result;
-}
+function parseCurva(rows) {
   var prevRowIdx=-1,realRowIdx=-1,tendRowIdx=-1,dateRowIdx=-1;
   for (var r=0;r<rows.length;r++){
     if (!rows[r]||!rows[r].c) continue;
@@ -303,7 +248,7 @@ function parseConcluidas(rows) {
   return {labels:labels,previsto:previsto,realizado:realizado,tendencia:tendencia};
 }
 
-function render(d, curva, concluidas, ts) {
+function render(d,curva,ts) {
   var ahead=d.dPct>=0;
   var badgeFn=function(dev){return dev>=0?'bg':'bd';};
 
@@ -393,40 +338,6 @@ function render(d, curva, concluidas, ts) {
        +'</tr></thead><tbody>'+topRows+'</tbody></table></div>')
     +'</div>'
 
-    // Seção: Atividades Concluídas no Período
-    +(concluidas && concluidas.rows.length > 0 ?
-      '<div class="card-full">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px">'
-      +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
-      +'<div style="display:flex;gap:16px;flex-wrap:wrap">'
-      +(concluidas.total?'<div style="background:#d1fae5;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;color:#065f46">Total: '+concluidas.total+' atividade(s)</div>':'')
-      +(concluidas.periodo?'<div style="background:#f0f9ff;border-radius:8px;padding:6px 14px;font-size:11px;color:#0369a1">'+concluidas.periodo+'</div>':'')
-      +'</div></div>'
-      +'<div class="tbl-wrap"><table><thead><tr>'
-      +concluidas.headers.map(function(h){
-        var align = (h==='%ANTERIOR'||h==='% ANTERIOR'||h==='%ATUAL'||h==='% ATUAL'||h==='HH PREV.'||h==='#') ? ' style="text-align:center"' : '';
-        return '<th'+align+'>'+h+'</th>';
-      }).join('')
-      +'</tr></thead><tbody>'
-      +concluidas.rows.map(function(row){
-        var cols = concluidas.headers.map(function(h, i){
-          var val = row[i] || '—';
-          var isAtual  = h.toLowerCase().indexOf('atual')>=0;
-          var isAnterior = h.toLowerCase().indexOf('anterior')>=0;
-          var isNum  = h==='#';
-          var isHH   = h.toLowerCase().indexOf('hh')>=0;
-          var style = 'padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
-          if (isNum)  return '<td style="'+style+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
-          if (isHH)   return '<td style="'+style+'text-align:center;font-weight:500;color:#374151">'+val+'</td>';
-          if (isAnterior) return '<td style="'+style+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+val+'</span></td>';
-          if (isAtual)    return '<td style="'+style+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+val+'</span></td>';
-          return '<td style="'+style+'color:#374151">'+val+'</td>';
-        }).join('');
-        return '<tr style="transition:background .15s" onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'+cols+'</tr>';
-      }).join('')
-      +'</tbody></table></div></div>'
-    : '')
-
     +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid">'
     +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div>'
     +'<div class="rs-item"><div class="rs-bar" style="background:#ef4444;min-height:44px"></div><div><div class="rs-t">Pontos de atenção</div><div class="rs-p">'+d.atrs+' atividades atrasadas ('+Math.round(d.atrs/d.totAc*100)+'% do total).</div></div></div>'
@@ -467,12 +378,11 @@ function init() {
   if(btn){btn.disabled=true;btn.textContent='↺ Carregando...';}
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
-    fetchGviz(SHEET_ID, GID),
-    fetchGviz(SHEET_ID_CURVA, GID_CURVA).catch(function(e){ console.warn('Curva S:', e.message); return null; }),
-    fetchGviz(SHEET_ID, SHEET_CONCLUIDAS).catch(function(e){ console.warn('Concluídas:', e.message); return null; })
+    fetchGviz(SHEET_ID,GID),
+    fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva S:',e.message);return null;})
   ]).then(function(results){
-    render(parseRelatorio(results[0]), results[1] ? parseCurva(results[1]) : null, results[2] ? parseConcluidas(results[2]) : null, ts);
-  }).catch(function(e){ showError(e.message); });
+    render(parseRelatorio(results[0]), results[1]?parseCurva(results[1]):null, ts);
+  }).catch(function(e){showError(e.message);});
 }
 
 init();
