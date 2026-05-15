@@ -6,7 +6,6 @@
 <meta name="google" content="notranslate">
 <title>Dashboard Gerencial — ADM do Brasil | Irmãos Passaúra</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
@@ -79,78 +78,74 @@ footer{text-align:center;padding:16px 0;font-size:10px;color:#9ca3af}
 <body>
 <div class="wrap"><div id="app"><div class="loading">⏳ Carregando dados da planilha...</div></div></div>
 <script>
-// ── Configuração ─────────────────────
 var SHEET_ID         = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB';
 var GID              = '775705987';
 var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
-var SHEET_CTRL_ATUAL = 'Controle de Atividades';
-var SHEET_CTRL_ANT   = 'Controle de Atividades Anterior';
 
-var chartDonut=null, chartCurva=null, chartAvancos=null;
+var chartDonut = null;
+var chartCurva = null;
 
-// ── Utilitários ──────────────────────
 function toggleObs(idx) {
-  var row=document.getElementById('obs-'+idx), chv=document.getElementById('chv-'+idx);
-  if(!row) return;
-  var open=row.style.display!=='none';
-  row.style.display=open?'none':'table-row';
-  if(chv) chv.className=open?'chevron':'chevron open';
+  var row = document.getElementById('obs-'+idx);
+  var chv = document.getElementById('chv-'+idx);
+  if (!row) return;
+  var open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : 'table-row';
+  if (chv) chv.className = open ? 'chevron' : 'chevron open';
 }
 
-function findPos(rows,text,exact) {
-  var s=text.toLowerCase().trim();
-  for(var r=0;r<rows.length;r++){
-    if(!rows[r]||!rows[r].c) continue;
-    for(var c=0;c<rows[r].c.length;c++){
+function findPos(rows, text, exact) {
+  var s = text.toLowerCase().trim();
+  for (var r=0;r<rows.length;r++) {
+    if (!rows[r]||!rows[r].c) continue;
+    for (var c=0;c<rows[r].c.length;c++) {
       var cell=rows[r].c[c];
       var v=String(cell?(cell.v!=null?cell.v:(cell.f||'')):'' ).toLowerCase().trim();
-      if(exact?v===s:v.indexOf(s)>=0) return [r,c];
+      if (exact?v===s:v.indexOf(s)>=0) return [r,c];
     }
   }
   return null;
 }
 
-function cv(rows,r,c){
+function cv(rows,r,c) {
   try{var x=rows[r]&&rows[r].c&&rows[r].c[c];return x?(x.v!=null?x.v:x.f):null;}catch(e){return null;}
 }
 
-function toNum(v,fb){
-  if(fb===undefined) fb=0;
-  if(v==null) return fb;
-  if(typeof v==='number') return v>=-1&&v<=1?+(v*100).toFixed(2):v;
+function toNum(v,fb) {
+  if (fb===undefined) fb=0;
+  if (v==null) return fb;
+  if (typeof v==='number') return v>=-1&&v<=1?+(v*100).toFixed(2):v;
   var s=String(v).trim().replace(/%/g,'');
   s=s.replace(/,(\d{1,2})$/,'.$1');
   s=s.replace(/[^0-9.\-]/g,'');
   return parseFloat(s)||fb;
 }
 
-function fmtDate(v){
-  if(!v) return '—';
+function fmtDate(v) {
+  if (!v) return '—';
   var s=String(v).trim();
   s=s.replace(/^[A-ZÁ-Úa-záéíóúà-ü]{2,5}\.?\s+/,'');
-  if(/Date\(/.test(s)){var m=s.match(/Date\((\d+),(\d+),(\d+)/);if(m)return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);}
+  if (/Date\(/.test(s)){var m=s.match(/Date\((\d+),(\d+),(\d+)/);if(m)return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);}
   var p=s.slice(0,10).split('-');
-  if(p.length===3) return p[2]+'/'+p[1];
+  if (p.length===3) return p[2]+'/'+p[1];
   return s.slice(0,5);
 }
 
-function fmtPct(val){
-  var n=parseFloat(String(val).replace(/[^0-9.\-]/g,''))||0;
-  if(n>0&&n<=1) n=Math.round(n*100); else n=Math.round(n);
-  return n+'%';
+function fmtPct(val) {
+  var n = parseFloat(String(val).replace(/[^0-9.\-]/g,''))||0;
+  if (n > 0 && n <= 1) n = Math.round(n * 100);
+  else n = Math.round(n);
+  return n + '%';
 }
 
-function cStr(c){return c?String(c.v!=null?c.v:(c.f||'')).trim():'';}
-
-// ── Fetch ────────────────────────────
-function fetchGviz(sheetId,sheetParam){
-  var param=/^\d+$/.test(sheetParam)?'gid='+sheetParam:'sheet='+encodeURIComponent(sheetParam);
-  var url='https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
-  var done=false;
-  return new Promise(function(resolve,reject){
-    setTimeout(function(){if(!done){done=true;reject(new Error('Timeout'));}},12000);
+function fetchGviz(sheetId, sheetParam) {
+  var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
+  var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  var done = false;
+  return new Promise(function(resolve, reject) {
+    setTimeout(function(){ if(!done){done=true;reject(new Error('Timeout'));}}, 12000);
     fetch(url,{cache:'no-store'}).then(function(res){return res.text();}).then(function(txt){
       if(done) return; done=true;
       var js=txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
@@ -160,126 +155,137 @@ function fetchGviz(sheetId,sheetParam){
   });
 }
 
-// ── Parsers ──────────────────────────
-function parseRelatorio(rows){
+function parseRelatorio(rows) {
   var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='';
-  for(var dr=0;dr<Math.min(8,rows.length);dr++){
-    if(!rows[dr]||!rows[dr].c) continue;
-    for(var dc=0;dc<rows[dr].c.length;dc++){
-      var c0=rows[dr].c[dc],val=String(c0?(c0.v!=null?c0.v:(c0.f||'')):'' ).trim();
-      if(val.toLowerCase().indexOf('atualiza')>=0){var dm=val.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/);dataAtual=dm?dm[1]:val.replace(/.*:\s*/,'').trim();if(dataAtual)break;}
+  for (var dr=0;dr<Math.min(8,rows.length);dr++) {
+    if (!rows[dr]||!rows[dr].c) continue;
+    for (var dc=0;dc<rows[dr].c.length;dc++) {
+      var c0=rows[dr].c[dc], val=String(c0?(c0.v!=null?c0.v:(c0.f||'')):'' ).trim();
+      if (val.toLowerCase().indexOf('atualiza')>=0) {
+        var dm=val.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/);
+        dataAtual=dm?dm[1]:val.replace(/.*:\s*/,'').trim();
+        if(dataAtual) break;
+      }
     }
     if(dataAtual) break;
   }
   var concPos=findPos(rows,'CONCLU');
-  if(concPos){var lr=concPos[0],lc=concPos[1],dr2=lr-1;if(dr2>=0){var v1=cv(rows,dr2,lc),v2=cv(rows,dr2,lc+1),v3=cv(rows,dr2,lc+2),v4=cv(rows,dr2,lc+3),v5=cv(rows,dr2,lc+4);if(v1!=null)rPct=toNum(v1,rPct);if(v2!=null)pPct=toNum(v2,pPct);if(v3!=null)dPct=toNum(v3,dPct);if(v4!=null&&!isNaN(+v4))totAc=+v4;if(v5!=null&&!isNaN(+v5))atrs=+v5;}}
+  if (concPos) {
+    var lr=concPos[0],lc=concPos[1],dr2=lr-1;
+    if (dr2>=0) {
+      var v1=cv(rows,dr2,lc),v2=cv(rows,dr2,lc+1),v3=cv(rows,dr2,lc+2),v4=cv(rows,dr2,lc+3),v5=cv(rows,dr2,lc+4);
+      if(v1!=null)rPct=toNum(v1,rPct); if(v2!=null)pPct=toNum(v2,pPct); if(v3!=null)dPct=toNum(v3,dPct);
+      if(v4!=null&&!isNaN(+v4))totAc=+v4; if(v5!=null&&!isNaN(+v5))atrs=+v5;
+    }
+  }
   var devs=[{nm:'ADM do Brasil',qt:7,cor:'#dc2626'},{nm:'Irmãos Passaúra',qt:19,cor:'#2563eb'},{nm:'ADM + Irmãos Passaúra',qt:0,cor:'#9ca3af'}];
   var qtdPos=findPos(rows,'QTD DESVIOS');
-  if(qtdPos){var hr=qtdPos[0],hc=qtdPos[1],nc=hc-1;for(var i=0;i<3;i++){var nm=String(cv(rows,hr+1+i,nc)||'').trim(),qt=cv(rows,hr+1+i,hc);if(nm&&qt!=null&&nm.toLowerCase().indexOf('total')<0)devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};}}
+  if (qtdPos) {
+    var hr=qtdPos[0],hc=qtdPos[1],nc=hc-1;
+    for (var i=0;i<3;i++) {
+      var nm=String(cv(rows,hr+1+i,nc)||'').trim(),qt=cv(rows,hr+1+i,hc);
+      if(nm&&qt!=null&&nm.toLowerCase().indexOf('total')<0) devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};
+    }
+  }
   var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
   var top20=[],edtPos=findPos(rows,'edt',true);
-  if(edtPos){var er=edtPos[0],ec=edtPos[1];for(var j=1;j<=20;j++){var edt=cv(rows,er+j,ec);if(!edt)continue;var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];var obsV=obsC&&obsC.v!=null?String(obsC.v):'';var obsF=obsC&&obsC.f!=null?String(obsC.f):'';var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});}}
+  if (edtPos) {
+    var er=edtPos[0],ec=edtPos[1];
+    for (var j=1;j<=20;j++) {
+      var edt=cv(rows,er+j,ec); if(!edt) continue;
+      var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
+      var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
+      var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
+      var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
+      top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+    }
+  }
   return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,dataAtual:dataAtual};
 }
 
-function parseCurva(rows){
+function parseCurva(rows) {
   var prevRowIdx=-1,realRowIdx=-1,tendRowIdx=-1,dateRowIdx=-1;
-  for(var r=0;r<rows.length;r++){if(!rows[r]||!rows[r].c)continue;var a=cStr(rows[r].c[0]).toLowerCase();if(a.indexOf('prev')>=0&&a.indexOf('acum')>=0)prevRowIdx=r;if(a.indexOf('real')>=0&&a.indexOf('acum')>=0)realRowIdx=r;if(a.indexOf('tend')>=0&&a.indexOf('acum')>=0)tendRowIdx=r;}
-  for(var r2=0;r2<rows.length;r2++){if(!rows[r2]||!rows[r2].c)continue;var cnt=0;for(var ci=0;ci<rows[r2].c.length;ci++){var cell=rows[r2].c[ci];if(!cell)continue;var vf=String(cell.f!=null?cell.f:(cell.v!=null?cell.v:'')).toLowerCase();if(/\d{1,2}[\-\/][a-z]{2,4}/.test(vf))cnt++;}if(cnt>=5){dateRowIdx=r2;break;}}
+  for (var r=0;r<rows.length;r++) {
+    if(!rows[r]||!rows[r].c) continue;
+    var c0=rows[r].c[0], a=String(c0?(c0.v!=null?c0.v:(c0.f||'')):'' ).toLowerCase();
+    if(a.indexOf('prev')>=0&&a.indexOf('acum')>=0) prevRowIdx=r;
+    if(a.indexOf('real')>=0&&a.indexOf('acum')>=0) realRowIdx=r;
+    if(a.indexOf('tend')>=0&&a.indexOf('acum')>=0) tendRowIdx=r;
+  }
+  for (var r2=0;r2<rows.length;r2++) {
+    if(!rows[r2]||!rows[r2].c) continue;
+    var cnt=0;
+    for (var ci=0;ci<rows[r2].c.length;ci++) {
+      var cell=rows[r2].c[ci]; if(!cell) continue;
+      var vf=String(cell.f!=null?cell.f:(cell.v!=null?cell.v:'')).toLowerCase();
+      if(/\d{1,2}[\-\/][a-z]{2,4}/.test(vf)) cnt++;
+    }
+    if(cnt>=5){dateRowIdx=r2;break;}
+  }
   if(prevRowIdx<0||dateRowIdx<0) return {labels:[],previsto:[],realizado:[],tendencia:[]};
-  var dateRow=rows[dateRowIdx],prevRow=rows[prevRowIdx],realRow=realRowIdx>=0?rows[realRowIdx]:null,tendRow=tendRowIdx>=0?rows[tendRowIdx]:null;
+  var dateRow=rows[dateRowIdx],prevRow=rows[prevRowIdx];
+  var realRow=realRowIdx>=0?rows[realRowIdx]:null;
+  var tendRow=tendRowIdx>=0?rows[tendRowIdx]:null;
   var maxCol=Math.max(dateRow.c?dateRow.c.length:0,prevRow.c?prevRow.c.length:0);
   var labels=[],previsto=[],realizado=[],tendencia=[];
-  for(var c2=1;c2<maxCol;c2++){var dCell=dateRow.c&&dateRow.c[c2];if(!dCell)continue;var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null);if(!dv)continue;var ds=String(dv).toLowerCase().replace(/\.$/,'').trim();if(!/\d/.test(ds))continue;var pCell=prevRow.c&&prevRow.c[c2],pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null;if(pv==null)continue;labels.push(ds);previsto.push(toNum(pv));var rCell=realRow&&realRow.c&&realRow.c[c2],rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;realizado.push(rv!=null?toNum(rv):null);var tCell=tendRow&&tendRow.c&&tendRow.c[c2],tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;tendencia.push(tv!=null?toNum(tv):null);}
+  for (var c2=1;c2<maxCol;c2++) {
+    var dCell=dateRow.c&&dateRow.c[c2]; if(!dCell) continue;
+    var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null); if(!dv) continue;
+    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim(); if(!/\d/.test(ds)) continue;
+    var pCell=prevRow.c&&prevRow.c[c2],pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null; if(pv==null) continue;
+    labels.push(ds); previsto.push(toNum(pv));
+    var rCell=realRow&&realRow.c&&realRow.c[c2],rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
+    realizado.push(rv!=null?toNum(rv):null);
+    var tCell=tendRow&&tendRow.c&&tendRow.c[c2],tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
+    tendencia.push(tv!=null?toNum(tv):null);
+  }
   return {labels:labels,previsto:previsto,realizado:realizado,tendencia:tendencia};
 }
 
-function parseConcluidas(rows){
+function parseConcluidas(rows) {
   var result={total:'',periodo:'',rows:[]};
   var headers=['#','EDT','Atividade','HH Prev.','% Anterior','% Atual','Início','Término Real'];
-  var headerRowIdx=-1,startCol=-1;
-  for(var r=0;r<rows.length;r++){
+  var headerRowIdx=-1, startCol=-1;
+  for (var r=0;r<rows.length;r++) {
     if(!rows[r]||!rows[r].c) continue;
-    var cells=rows[r].c,rowText=cells.map(function(c){return c?String(c.v!=null?c.v:(c.f||'')).trim():'';});
+    var cells=rows[r].c;
+    var rowText=cells.map(function(c){return c?String(c.v!=null?c.v:(c.f||'')).trim():'';});
     var rowStr=rowText.join('|').toLowerCase();
-    if(rowStr.indexOf('total de atividades')>=0){for(var ci=0;ci<rowText.length;ci++){if(rowText[ci].toLowerCase().indexOf('total de atividades')>=0){result.total=rowText[ci+1]||rowText[ci+2]||'';break;}}}
-    if(rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0){for(var ci2=0;ci2<rowText.length;ci2++){var rv2=rowText[ci2].toLowerCase();if(rv2.indexOf('per')>=0&&rv2.indexOf('nali')>=0){result.periodo=rowText[ci2+1]||rowText[ci2+2]||'';break;}}}
-    if(rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0){headerRowIdx=r;for(var hi=0;hi<rowText.length;hi++){if(rowText[hi]==='#'){startCol=hi;break;}}continue;}
-    if(headerRowIdx>=0&&r>headerRowIdx&&startCol>=0){if(!rowText.join('').trim())continue;if(rowStr.indexOf('legenda')>=0||rowStr.indexOf('relat')>=0)break;var rowData=[];for(var di=startCol;di<startCol+8;di++)rowData.push(rowText[di]||'');if(rowData.filter(function(v){return v!=='';}).length>=2)result.rows.push(rowData);}
+    if(rowStr.indexOf('total de atividades')>=0) {
+      for(var ci=0;ci<rowText.length;ci++) {
+        if(rowText[ci].toLowerCase().indexOf('total de atividades')>=0){result.total=rowText[ci+1]||rowText[ci+2]||'';break;}
+      }
+    }
+    if(rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0) {
+      for(var ci2=0;ci2<rowText.length;ci2++) {
+        var rv2=rowText[ci2].toLowerCase();
+        if(rv2.indexOf('per')>=0&&rv2.indexOf('nali')>=0){result.periodo=rowText[ci2+1]||rowText[ci2+2]||'';break;}
+      }
+    }
+    if(rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0) {
+      headerRowIdx=r;
+      for(var hi=0;hi<rowText.length;hi++){if(rowText[hi]==='#'){startCol=hi;break;}}
+      continue;
+    }
+    if(headerRowIdx>=0&&r>headerRowIdx&&startCol>=0) {
+      if(!rowText.join('').trim()) continue;
+      if(rowStr.indexOf('legenda')>=0||rowStr.indexOf('relat')>=0) break;
+      var rowData=[];
+      for(var di=startCol;di<startCol+8;di++) rowData.push(rowText[di]||'');
+      if(rowData.filter(function(v){return v!=='';}).length>=2) result.rows.push(rowData);
+    }
   }
   result.headers=headers;
   return result;
 }
 
-function parseCronograma(rows){
-  var data='', colEdt=0, colAtiv=1, colPct=4, headerRowIdx=-1;
-  for(var r=0;r<Math.min(10,rows.length);r++){
-    if(!rows[r]||!rows[r].c) continue;
-    var rowText=rows[r].c.map(function(c){return cStr(c);});
-    var rowStr=rowText.join('|').toLowerCase();
-    // Data de controle
-    if(!data){
-      var dm=(rowText.join(' ')).match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
-      if(dm) data=dm[1];
-    }
-    // Cabeçalho: linha com EDT e ATIVIDADE e % REALIZADO
-    if(rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0){
-      headerRowIdx=r;
-      for(var ci=0;ci<rows[r].c.length;ci++){
-        var h=cStr(rows[r].c[ci]).toLowerCase().trim();
-        if(h==='edt') colEdt=ci;
-        if(h.indexOf('atividade')>=0&&h.length<15) colAtiv=ci;
-        // Detecta % REALIZADO, % trabalho concluído ou % concluído
-        if(h==='% realizado'||h==='%realizado'||(h.indexOf('realizado')>=0&&h.indexOf('%')>=0)) colPct=ci;
-        if(h==='% trabalho concluído'||(h.indexOf('trabalho')>=0&&h.indexOf('conclu')>=0)) colPct=ci;
-      }
-      break;
-    }
-  }
-  var activities={};
-  for(var r2=headerRowIdx+1;r2<rows.length;r2++){
-    if(!rows[r2]||!rows[r2].c) continue;
-    var edt=cStr(rows[r2].c[colEdt]);
-    if(!edt||edt.toLowerCase()==='edt') continue;
-    var ativ=cStr(rows[r2].c[colAtiv]);
-    if(!ativ) continue;
-    var pCell=rows[r2].c[colPct];
-    var pct=pCell?toNum(pCell.v!=null?pCell.v:(pCell.f||''),0):0;
-    activities[edt]={ativ:ativ,pct:pct};
-  }
-  return {data:data,activities:activities};
-}
-
-function buildTopAvancos(projData,antData){
-  if(!projData||!antData) return null;
-  var proj=projData.activities, ant=antData.activities;
-  var deltas=[];
-  var keys=Object.keys(proj);
-  for(var i=0;i<keys.length;i++){
-    var edt=keys[i];
-    var atual=proj[edt].pct;
-    var anterior=ant[edt]?ant[edt].pct:0;
-    var delta=atual-anterior;
-    if(delta>0&&atual>0){
-      deltas.push({edt:edt,ativ:proj[edt].ativ,atual:atual,anterior:anterior,delta:delta});
-    }
-  }
-  deltas.sort(function(a,b){return b.delta-a.delta;});
-  return {
-    top:deltas.slice(0,8),
-    dataAtual:projData.data,
-    dataAnterior:antData.data
-  };
-}
-
-// ── Build sections ───────────────────
-function buildConclSection(concl){
+function buildConclSection(concl) {
   if(!concl||!concl.rows||!concl.rows.length) return '';
   var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
   var rows=concl.rows.map(function(row){
     return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
       +concl.headers.map(function(h,i){
-        var val=row[i]||'—',hl=h.toLowerCase();
+        var val=row[i]||'—', hl=h.toLowerCase();
         if(h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
         if(hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
         if(hl.indexOf('anterior')>=0) return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+fmtPct(val)+'</span></td>';
@@ -295,12 +301,13 @@ function buildConclSection(concl){
     +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
     +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+badge+periodo+'</div></div>'
     +'<div class="tbl-wrap"><table><thead><tr>'
-    +concl.headers.map(function(h){var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';}).join('')
-    +'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+    +concl.headers.map(function(h){
+      var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
+      return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
+    }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 
-// ── Render ───────────────────────────
-function render(d,curva,concl,topAvancos,ts){
+function render(d, curva, concl, ts) {
   var ahead=d.dPct>=0;
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
@@ -325,11 +332,16 @@ function render(d,curva,concl,topAvancos,ts){
     +'<span style="font-size:9px;opacity:.65;text-transform:uppercase">Contratada</span>'
     +(d.dataAtual?'<span style="font-size:10px;font-weight:500;color:#fff;opacity:.9;margin-top:2px">Data: '+d.dataAtual+'</span>':'')
     +'</div>'
-    +'<div style="flex:1;padding:0 18px"><div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div><h1>Relatório Gerencial — Montagem Mecânica</h1><div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div></div>'
+    +'<div style="flex:1;padding:0 18px">'
+    +'<div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div>'
+    +'<h1>Relatório Gerencial — Montagem Mecânica</h1>'
+    +'<div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div>'
+    +'</div>'
     +'<div class="hdr-r">'
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">'
     +'<img src="./Logo_Adm.png" alt="ADM do Brasil" onerror="this.src=\'./Logo_Adm.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
-    +'<span style="font-size:9px;opacity:.65;text-transform:uppercase">Contratante</span></div>'
+    +'<span style="font-size:9px;opacity:.65;text-transform:uppercase">Contratante</span>'
+    +'</div>'
     +'<div class="hdr-date">Atualizado: '+ts+'</div>'
     +'<div class="hdr-author">Raphael Justi Medeiros</div>'
     +'<button class="btn-ref" onclick="init()">↺ Atualizar</button>'
@@ -345,8 +357,10 @@ function render(d,curva,concl,topAvancos,ts){
 
     +'<div class="row2">'
     +'<div class="card"><div class="ct">Avanço físico</div>'
-    +'<div class="pb-row"><div class="pb-lbl"><span>Realizado</span><span>'+d.rPct.toFixed(1)+'%</span></div><div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.rPct,100)+'%;background:linear-gradient(90deg,#34d399,#10b981 60%,#059669);box-shadow:0 2px 8px rgba(16,185,129,0.45)"></div></div></div>'
-    +'<div class="pb-row"><div class="pb-lbl"><span>Previsto</span><span>'+d.pPct.toFixed(1)+'%</span></div><div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.pPct,100)+'%;background:linear-gradient(90deg,#e5e7eb,#9ca3af 60%,#6b7280);animation-delay:.2s"></div></div></div>'
+    +'<div class="pb-row"><div class="pb-lbl"><span>Realizado</span><span>'+d.rPct.toFixed(1)+'%</span></div>'
+    +'<div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.rPct,100)+'%;background:linear-gradient(90deg,#34d399,#10b981 60%,#059669);box-shadow:0 2px 8px rgba(16,185,129,0.45)"></div></div></div>'
+    +'<div class="pb-row"><div class="pb-lbl"><span>Previsto</span><span>'+d.pPct.toFixed(1)+'%</span></div>'
+    +'<div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.pPct,100)+'%;background:linear-gradient(90deg,#e5e7eb,#9ca3af 60%,#6b7280);box-shadow:0 2px 6px rgba(107,114,128,0.35);animation-delay:.2s"></div></div></div>'
     +'<div class="st-box '+(ahead?'ok':'bad')+'">'+(ahead?'✔ Projeto adiantado':'⚠ Projeto atrasado')+' — '+(ahead?'+':'')+d.dPct.toFixed(2)+' p.p. '+(ahead?'acima':'abaixo')+' do previsto</div>'
     +'<div style="height:18px"></div><div class="ct">Desvios por responsável</div>'
     +d.devs.map(function(v){return '<div class="dv-row"><div class="dv-nm">'+v.nm+'</div><div class="dv-track"><div class="dv-fill" style="width:'+Math.round(v.qt/d.totDv*100)+'%;background:'+v.cor+'"></div></div><div class="dv-cnt">'+v.qt+'</div><div class="dv-pct">'+Math.round(v.qt/d.totDv*100)+'%</div></div>';}).join('')
@@ -358,21 +372,11 @@ function render(d,curva,concl,topAvancos,ts){
     +'</div></div>'
 
     +'<div class="card-full"><div class="ct">Curva S — Avanço Físico Acumulado</div>'
-    +'<div class="curva-leg"><div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>Previsto Acumulado</div><div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div><div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div></div>'
-    +'<div style="position:relative;height:300px"><canvas id="curvaChart"></canvas></div></div>'
-
-    // Top Avanços
-    +(topAvancos&&topAvancos.top&&topAvancos.top.length>0?
-      '<div class="card-full">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px">'
-      +'<div class="ct" style="margin:0">▲ Top Avanços Físicos do Período</div>'
-      +'<div style="display:flex;gap:12px">'
-      +(topAvancos.dataAtual?'<div class="curva-leg-item"><div style="width:12px;height:12px;background:#10b981;border-radius:2px"></div>Atual ('+topAvancos.dataAtual+')</div>':'')
-      +(topAvancos.dataAnterior?'<div class="curva-leg-item"><div style="width:12px;height:12px;background:#bfdbfe;border-radius:2px"></div>Anterior ('+topAvancos.dataAnterior+')</div>':'')
-      +'</div></div>'
-      +'<div style="position:relative;height:'+(topAvancos.top.length*60+40)+'px"><canvas id="avancosChart"></canvas></div>'
-      +'</div>'
-    :'')
+    +'<div class="curva-leg">'
+    +'<div class="curva-leg-item"><div class="curva-leg-line" style="background:#2563eb"></div>Previsto Acumulado</div>'
+    +'<div class="curva-leg-item"><div class="curva-leg-line" style="background:#f59e0b"></div>Realizado Acumulado</div>'
+    +'<div class="curva-leg-item"><div class="curva-leg-line" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>Tendência Acumulada</div>'
+    +'</div><div style="position:relative;height:300px"><canvas id="curvaChart"></canvas></div></div>'
 
     +'<div class="card-full"><div class="ct">Top 20 — atividades críticas (maior desvio) <span style="font-size:10px;font-weight:400;color:#9ca3af">— clique na linha para ver a observação</span></div>'
     +(d.top20.length===0?'<p style="font-size:12px;color:#9ca3af;text-align:center;padding:20px">Dados não encontrados.</p>'
@@ -389,78 +393,44 @@ function render(d,curva,concl,topAvancos,ts){
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
-  // Donut
   if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
 
-  // Curva S
   if(chartCurva) chartCurva.destroy();
   if(curva&&curva.labels.length>0){
     chartCurva=new Chart(document.getElementById('curvaChart'),{type:'line',data:{labels:curva.labels,datasets:[
-      {label:'Previsto',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'},
-      {label:'Realizado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,tension:0.3,fill:'origin',backgroundColor:'rgba(5,120,80,0.13)',spanGaps:true},
-      {label:'Tendência',data:curva.tendencia,borderColor:'#10b981',borderDash:[6,3],borderWidth:2,pointRadius:0,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'}
+      {label:'Previsto Acumulado',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'},
+      {label:'Realizado Acumulado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:'origin',backgroundColor:'rgba(5,120,80,0.13)',spanGaps:true},
+      {label:'Tendência Acumulada',data:curva.tendencia,borderColor:'#10b981',borderDash:[6,3],borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'}
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1)+'%':'—');}}},filler:{propagate:false}},
-      scales:{x:{title:{display:true,text:'Data',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}}
-    }});
-  }
-
-  // Top Avanços
-  if(chartAvancos) chartAvancos.destroy();
-  if(topAvancos&&topAvancos.top&&topAvancos.top.length>0){
-    var ta=topAvancos.top;
-    chartAvancos=new Chart(document.getElementById('avancosChart'),{
-      type:'bar',
-      data:{
-        labels:ta.map(function(t){var n=t.ativ;return n.length>35?n.slice(0,33)+'…':n;}),
-        datasets:[
-          {label:'Atual',data:ta.map(function(t){return t.atual;}),backgroundColor:'#10b981',borderRadius:3,borderSkipped:false},
-          {label:'Anterior',data:ta.map(function(t){return t.anterior;}),backgroundColor:'#bfdbfe',borderRadius:3,borderSkipped:false}
-        ]
-      },
-      options:{
-        indexAxis:'y',
-        responsive:true,
-        maintainAspectRatio:false,
-        plugins:{
-          legend:{display:false},
-          tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+c.raw.toFixed(0)+'%';}}}
-        },
-        scales:{
-          x:{min:0,max:100,ticks:{font:{size:10},color:'#9ca3af',callback:function(v){return v;}},grid:{color:'#f3f4f6'},title:{display:true,text:'%',font:{size:10},color:'#9ca3af'}},
-          y:{ticks:{font:{size:10},color:'#374151'},grid:{display:false}}
-        }
+      scales:{
+        x:{title:{display:true,text:'Data',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},
+        y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}
       }
-    });
+    }});
+  } else {
+    var el=document.getElementById('curvaChart');
+    if(el) el.parentElement.innerHTML='<p style="text-align:center;padding:40px;color:#9ca3af;font-size:12px">Curva S não carregada.</p>';
   }
 }
 
-function showError(msg){
+function showError(msg) {
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'</div>';
 }
 
-function init(){
+function init() {
   var btn=document.querySelector('.btn-ref');
   if(btn){btn.disabled=true;btn.textContent='↺ Carregando...';}
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
     fetchGviz(SHEET_ID,GID),
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_CRONO_PROJ).catch(function(e){console.warn('Crono Proj:',e.message);return null;}),
-    fetchGviz(SHEET_ID,GID_CRONO_ANT).catch(function(e){console.warn('Crono Ant:',e.message);return null;})
+    fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;})
   ]).then(function(results){
-    try{
-      var d=parseRelatorio(results[0]);
-      var curva=results[1]?parseCurva(results[1]):null;
-      var concl=results[2]?parseConcluidas(results[2]):null;
-      var projData=results[3]?parseCronograma(results[3]):null;
-      var antData=results[4]?parseCronograma(results[4]):null;
-      var topAvancos=buildTopAvancos(projData,antData);
-      render(d,curva,concl,topAvancos,ts);
-    }catch(err){console.error(err);showError(err.message);}
+    try{render(parseRelatorio(results[0]),results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts);}
+    catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
 
