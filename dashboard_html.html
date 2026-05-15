@@ -135,14 +135,18 @@ function fmtDate(v) {
   return s.slice(0,5);
 }
 
-function fetchGviz(sheetId,sheetParam) {
-  var param=/^\d+$/.test(sheetParam)?'gid='+sheetParam:'sheet='+encodeURIComponent(sheetParam);
-  var url='https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
-  return fetch(url,{cache:'no-store'}).then(function(res){return res.text();}).then(function(txt){
-    var js=txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
-    if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
-    return JSON.parse(js[1]).table.rows;
-  });
+function fetchGviz(sheetId, sheetParam) {
+  var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
+  var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timer = controller ? setTimeout(function(){ controller.abort(); }, 12000) : null;
+  return fetch(url, {cache:'no-store', signal: controller ? controller.signal : undefined})
+    .then(function(res){ if(timer) clearTimeout(timer); return res.text(); })
+    .then(function(txt){
+      var js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
+      if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
+      return JSON.parse(js[1]).table.rows;
+    });
 }
 
 function parseRelatorio(rows) {
