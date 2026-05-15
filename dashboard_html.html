@@ -85,8 +85,8 @@ var GID              = '775705987';
 var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
-var SHEET_CRONO_PROJ = 'Cronograma Project';
-var GID_CRONO_ANT    = '1153967303';
+var SHEET_CTRL_ATUAL = 'Controle de Atividades';
+var SHEET_CTRL_ANT   = 'Controle de Atividades Anterior';
 
 var chartDonut=null, chartCurva=null, chartAvancos=null;
 
@@ -212,25 +212,26 @@ function parseConcluidas(rows){
 }
 
 function parseCronograma(rows){
-  var data='', colEdt=0, colAtiv=1, colPct=3, headerRowIdx=-1;
-  // Busca data (linha 1) e cabeçalho
-  for(var r=0;r<Math.min(8,rows.length);r++){
+  var data='', colEdt=0, colAtiv=1, colPct=4, headerRowIdx=-1;
+  for(var r=0;r<Math.min(10,rows.length);r++){
     if(!rows[r]||!rows[r].c) continue;
     var rowText=rows[r].c.map(function(c){return cStr(c);});
     var rowStr=rowText.join('|').toLowerCase();
-    // Extrai data
-    if(!data&&(rowStr.indexOf('data')>=0||rowStr.indexOf('/')>=0)){
-      var dm=rowText.join(' ').match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/);
-      if(dm) data=dm[1].replace(/\//g,'/');
+    // Data de controle
+    if(!data){
+      var dm=(rowText.join(' ')).match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+      if(dm) data=dm[1];
     }
-    // Cabeçalho: linha com EDT e ATIVIDADE
+    // Cabeçalho: linha com EDT e ATIVIDADE e % REALIZADO
     if(rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0){
       headerRowIdx=r;
       for(var ci=0;ci<rows[r].c.length;ci++){
-        var h=cStr(rows[r].c[ci]).toLowerCase();
+        var h=cStr(rows[r].c[ci]).toLowerCase().trim();
         if(h==='edt') colEdt=ci;
         if(h.indexOf('atividade')>=0&&h.length<15) colAtiv=ci;
-        if((h.indexOf('%')>=0&&h.indexOf('trabalho')>=0&&h.indexOf('conclu')>=0)||(h==='% trabalho concluído')) colPct=ci;
+        // Detecta % REALIZADO, % trabalho concluído ou % concluído
+        if(h==='% realizado'||h==='%realizado'||(h.indexOf('realizado')>=0&&h.indexOf('%')>=0)) colPct=ci;
+        if(h==='% trabalho concluído'||(h.indexOf('trabalho')>=0&&h.indexOf('conclu')>=0)) colPct=ci;
       }
       break;
     }
@@ -242,8 +243,8 @@ function parseCronograma(rows){
     if(!edt||edt.toLowerCase()==='edt') continue;
     var ativ=cStr(rows[r2].c[colAtiv]);
     if(!ativ) continue;
-    var pctCell=rows[r2].c[colPct];
-    var pct=pctCell?toNum(pctCell.v!=null?pctCell.v:(pctCell.f||''),0):0;
+    var pCell=rows[r2].c[colPct];
+    var pct=pCell?toNum(pCell.v!=null?pCell.v:(pCell.f||''),0):0;
     activities[edt]={ativ:ativ,pct:pct};
   }
   return {data:data,activities:activities};
