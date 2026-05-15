@@ -352,11 +352,11 @@ function render(d,curva,ts) {
   if (chartCurva) chartCurva.destroy();
   if (curva&&curva.labels.length>0){
     chartCurva=new Chart(document.getElementById('curvaChart'),{type:'line',data:{labels:curva.labels,datasets:[
-      {label:'Previsto Acumulado',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true},
-      {label:'Realizado Acumulado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:false},
-      {label:'Tendência Acumulada',data:curva.tendencia,borderColor:'#10b981',borderDash:[6,3],borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true}
+      {label:'Previsto Acumulado',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'},
+      {label:'Realizado Acumulado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:'origin',backgroundColor:'rgba(5,120,80,0.13)',spanGaps:true},
+      {label:'Tendência Acumulada',data:curva.tendencia,borderColor:'#10b981',borderDash:[6,3],borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'}
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1)+'%':'—');}}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1)+'%':'—');}}},filler:{propagate:false}},
       scales:{
         x:{title:{display:true,text:'Data',font:{size:11,weight:'500'},color:'#6b7280',padding:{top:8}},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},
         y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11,weight:'500'},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}
