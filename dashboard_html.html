@@ -54,7 +54,6 @@ tbody td{padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;
 tbody tr.data-row:hover{background:#f0f6ff}
 tbody tr.data-row{cursor:pointer;transition:background .15s}
 tbody tr.obs-row td{background:#f0f6ff;border-left:3px solid #2563eb;font-size:12px;padding:10px 16px;word-break:break-word;line-height:1.6}
-tbody tr:last-child td{border-bottom:none}
 .mono{font-family:monospace;font-size:10px;color:#6b7280}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
 .bd{background:#fee2e2;color:#991b1b}.bg{background:#d1fae5;color:#065f46}
@@ -79,9 +78,6 @@ footer{text-align:center;padding:16px 0;font-size:10px;color:#9ca3af}
 <body>
 <div class="wrap"><div id="app"><div class="loading">⏳ Carregando dados da planilha...</div></div></div>
 <script>
-// ╔══════════════════════════════════╗
-//   CONFIGURAÇÃO
-// ╚══════════════════════════════════╝
 var SHEET_ID         = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB';
 var GID              = '775705987';
 var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
@@ -91,7 +87,6 @@ var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
 var chartDonut = null;
 var chartCurva = null;
 
-// ── Utilitários ──────────────────────
 function toggleObs(idx) {
   var row = document.getElementById('obs-'+idx);
   var chv = document.getElementById('chv-'+idx);
@@ -138,13 +133,13 @@ function fmtDate(v) {
   return s.slice(0,5);
 }
 
-function cellStr(cell) {
-  if (!cell) return '';
-  var v = cell.v!=null ? cell.v : (cell.f||'');
-  return String(v).trim();
+function fmtPct(val) {
+  var n = parseFloat(String(val).replace(/[^0-9.\-]/g,''))||0;
+  if (n > 0 && n <= 1) n = Math.round(n * 100);
+  else n = Math.round(n);
+  return n + '%';
 }
 
-// ── Fetch ────────────────────────────
 function fetchGviz(sheetId, sheetParam) {
   var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
   var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
@@ -152,65 +147,52 @@ function fetchGviz(sheetId, sheetParam) {
   return new Promise(function(resolve, reject) {
     setTimeout(function(){ if(!done){done=true;reject(new Error('Timeout'));}}, 12000);
     fetch(url,{cache:'no-store'}).then(function(res){return res.text();}).then(function(txt){
-      if (done) return;
-      done = true;
+      if(done) return; done=true;
       var js=txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
-      if (!js) return reject(new Error('Resposta inesperada.'));
+      if(!js) return reject(new Error('Resposta inesperada.'));
       resolve(JSON.parse(js[1]).table.rows);
-    }).catch(function(e){ if(!done){done=true;reject(e);} });
+    }).catch(function(e){if(!done){done=true;reject(e);}});
   });
 }
 
-// ── Parsers ──────────────────────────
 function parseRelatorio(rows) {
-  var rPct=82, pPct=79.5, dPct=2.55, totAc=72, atrs=26, dataAtual='';
-
-  // Data de atualização
+  var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='';
   for (var dr=0;dr<Math.min(8,rows.length);dr++) {
     if (!rows[dr]||!rows[dr].c) continue;
     for (var dc=0;dc<rows[dr].c.length;dc++) {
-      var val=cellStr(rows[dr].c[dc]);
+      var c0=rows[dr].c[dc], val=String(c0?(c0.v!=null?c0.v:(c0.f||'')):'' ).trim();
       if (val.toLowerCase().indexOf('atualiza')>=0) {
         var dm=val.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/);
         dataAtual=dm?dm[1]:val.replace(/.*:\s*/,'').trim();
-        if (dataAtual) break;
+        if(dataAtual) break;
       }
     }
-    if (dataAtual) break;
+    if(dataAtual) break;
   }
-
-  // KPIs
   var concPos=findPos(rows,'CONCLU');
   if (concPos) {
     var lr=concPos[0],lc=concPos[1],dr2=lr-1;
     if (dr2>=0) {
       var v1=cv(rows,dr2,lc),v2=cv(rows,dr2,lc+1),v3=cv(rows,dr2,lc+2),v4=cv(rows,dr2,lc+3),v5=cv(rows,dr2,lc+4);
-      if (v1!=null) rPct=toNum(v1,rPct);
-      if (v2!=null) pPct=toNum(v2,pPct);
-      if (v3!=null) dPct=toNum(v3,dPct);
-      if (v4!=null&&!isNaN(+v4)) totAc=+v4;
-      if (v5!=null&&!isNaN(+v5)) atrs=+v5;
+      if(v1!=null)rPct=toNum(v1,rPct); if(v2!=null)pPct=toNum(v2,pPct); if(v3!=null)dPct=toNum(v3,dPct);
+      if(v4!=null&&!isNaN(+v4))totAc=+v4; if(v5!=null&&!isNaN(+v5))atrs=+v5;
     }
   }
-
-  // Desvios
   var devs=[{nm:'ADM do Brasil',qt:7,cor:'#dc2626'},{nm:'Irmãos Passaúra',qt:19,cor:'#2563eb'},{nm:'ADM + Irmãos Passaúra',qt:0,cor:'#9ca3af'}];
   var qtdPos=findPos(rows,'QTD DESVIOS');
   if (qtdPos) {
     var hr=qtdPos[0],hc=qtdPos[1],nc=hc-1;
     for (var i=0;i<3;i++) {
       var nm=String(cv(rows,hr+1+i,nc)||'').trim(),qt=cv(rows,hr+1+i,hc);
-      if (nm&&qt!=null&&nm.toLowerCase().indexOf('total')<0) devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};
+      if(nm&&qt!=null&&nm.toLowerCase().indexOf('total')<0) devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};
     }
   }
   var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
-
-  // Top 20
-  var top20=[], edtPos=findPos(rows,'edt',true);
+  var top20=[],edtPos=findPos(rows,'edt',true);
   if (edtPos) {
     var er=edtPos[0],ec=edtPos[1];
     for (var j=1;j<=20;j++) {
-      var edt=cv(rows,er+j,ec);if (!edt) continue;
+      var edt=cv(rows,er+j,ec); if(!edt) continue;
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
@@ -222,40 +204,36 @@ function parseRelatorio(rows) {
 }
 
 function parseCurva(rows) {
-  var prevRowIdx=-1, realRowIdx=-1, tendRowIdx=-1, dateRowIdx=-1;
+  var prevRowIdx=-1,realRowIdx=-1,tendRowIdx=-1,dateRowIdx=-1;
   for (var r=0;r<rows.length;r++) {
-    if (!rows[r]||!rows[r].c) continue;
-    var a=cellStr(rows[r].c[0]).toLowerCase();
-    if (a.indexOf('prev')>=0&&a.indexOf('acum')>=0) prevRowIdx=r;
-    if (a.indexOf('real')>=0&&a.indexOf('acum')>=0) realRowIdx=r;
-    if (a.indexOf('tend')>=0&&a.indexOf('acum')>=0) tendRowIdx=r;
+    if(!rows[r]||!rows[r].c) continue;
+    var c0=rows[r].c[0], a=String(c0?(c0.v!=null?c0.v:(c0.f||'')):'' ).toLowerCase();
+    if(a.indexOf('prev')>=0&&a.indexOf('acum')>=0) prevRowIdx=r;
+    if(a.indexOf('real')>=0&&a.indexOf('acum')>=0) realRowIdx=r;
+    if(a.indexOf('tend')>=0&&a.indexOf('acum')>=0) tendRowIdx=r;
   }
   for (var r2=0;r2<rows.length;r2++) {
-    if (!rows[r2]||!rows[r2].c) continue;
+    if(!rows[r2]||!rows[r2].c) continue;
     var cnt=0;
     for (var ci=0;ci<rows[r2].c.length;ci++) {
-      var cell=rows[r2].c[ci];if (!cell) continue;
+      var cell=rows[r2].c[ci]; if(!cell) continue;
       var vf=String(cell.f!=null?cell.f:(cell.v!=null?cell.v:'')).toLowerCase();
-      if (/\d{1,2}[\-\/][a-záéíóú]{2,4}/.test(vf)||/\d{1,2}[\-\/][a-z]{2,4}/.test(vf)) cnt++;
+      if(/\d{1,2}[\-\/][a-z]{2,4}/.test(vf)) cnt++;
     }
-    if (cnt>=5){dateRowIdx=r2;break;}
+    if(cnt>=5){dateRowIdx=r2;break;}
   }
-  if (prevRowIdx<0||dateRowIdx<0) return {labels:[],previsto:[],realizado:[],tendencia:[]};
+  if(prevRowIdx<0||dateRowIdx<0) return {labels:[],previsto:[],realizado:[],tendencia:[]};
   var dateRow=rows[dateRowIdx],prevRow=rows[prevRowIdx];
   var realRow=realRowIdx>=0?rows[realRowIdx]:null;
   var tendRow=tendRowIdx>=0?rows[tendRowIdx]:null;
   var maxCol=Math.max(dateRow.c?dateRow.c.length:0,prevRow.c?prevRow.c.length:0);
   var labels=[],previsto=[],realizado=[],tendencia=[];
   for (var c2=1;c2<maxCol;c2++) {
-    var dCell=dateRow.c&&dateRow.c[c2];if (!dCell) continue;
-    var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null);
-    if (!dv) continue;
-    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim();
-    if (!/\d/.test(ds)) continue;
-    var pCell=prevRow.c&&prevRow.c[c2],pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null;
-    if (pv==null) continue;
-    labels.push(ds);
-    previsto.push(toNum(pv));
+    var dCell=dateRow.c&&dateRow.c[c2]; if(!dCell) continue;
+    var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null); if(!dv) continue;
+    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim(); if(!/\d/.test(ds)) continue;
+    var pCell=prevRow.c&&prevRow.c[c2],pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null; if(pv==null) continue;
+    labels.push(ds); previsto.push(toNum(pv));
     var rCell=realRow&&realRow.c&&realRow.c[c2],rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
     realizado.push(rv!=null?toNum(rv):null);
     var tCell=tendRow&&tendRow.c&&tendRow.c[c2],tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
@@ -265,111 +243,72 @@ function parseCurva(rows) {
 }
 
 function parseConcluidas(rows) {
-  var result={total:'',periodo:'',headers:[],rows:[]};
-  var headerRowIdx=-1;
+  var result={total:'',periodo:'',rows:[]};
+  var headers=['#','EDT','Atividade','HH Prev.','% Anterior','% Atual','Início','Término Real'];
+  var headerRowIdx=-1, startCol=-1;
   for (var r=0;r<rows.length;r++) {
-    if (!rows[r]||!rows[r].c) continue;
+    if(!rows[r]||!rows[r].c) continue;
     var cells=rows[r].c;
-    var rowStr=cells.map(function(c){return c?cellStr(c).toLowerCase():'';}).join('|');
-    // Resumo
-    if (rowStr.indexOf('total de atividades')>=0) {
-      for (var c=0;c<cells.length;c++) {
-        if (cellStr(cells[c]).toLowerCase().indexOf('total de atividades')>=0) {
-          var n=cells[c+1]||cells[c+2];
-          if(n) result.total=cellStr(n);
-        }
+    var rowText=cells.map(function(c){return c?String(c.v!=null?c.v:(c.f||'')).trim():'';});
+    var rowStr=rowText.join('|').toLowerCase();
+    if(rowStr.indexOf('total de atividades')>=0) {
+      for(var ci=0;ci<rowText.length;ci++) {
+        if(rowText[ci].toLowerCase().indexOf('total de atividades')>=0){result.total=rowText[ci+1]||rowText[ci+2]||'';break;}
       }
     }
-    if (rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0) {
-      for (var c2=0;c2<cells.length;c2++) {
-        var cv2=cellStr(cells[c2]).toLowerCase();
-        if (cv2.indexOf('per')>=0&&cv2.indexOf('nali')>=0) {
-          var n2=cells[c2+1]||cells[c2+2];
-          if(n2) result.periodo=cellStr(n2);
-        }
+    if(rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0) {
+      for(var ci2=0;ci2<rowText.length;ci2++) {
+        var rv2=rowText[ci2].toLowerCase();
+        if(rv2.indexOf('per')>=0&&rv2.indexOf('nali')>=0){result.periodo=rowText[ci2+1]||rowText[ci2+2]||'';break;}
       }
     }
-    // Cabeçalho
-    if (rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0) {
+    if(rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0) {
       headerRowIdx=r;
-      // Guarda índices e nomes dos cabeçalhos não-vazios
-      result.headerIndices=[];
-      result.headers=[];
-      for (var hi=0;hi<cells.length;hi++) {
-        var h=cellStr(cells[hi]);
-        if (h) {result.headers.push(h);result.headerIndices.push(hi);}
-      }
+      for(var hi=0;hi<rowText.length;hi++){if(rowText[hi]==='#'){startCol=hi;break;}}
       continue;
     }
-    // Dados
-    if (headerRowIdx>=0&&r>headerRowIdx) {
-      var allVals=cells.map(function(c){return c?cellStr(c):'';});
-      if (!allVals.join('').trim()) continue;
-      if (allVals.join('').toLowerCase().indexOf('legenda')>=0) break;
-      if (allVals.join('').toLowerCase().indexOf('relat')>=0) break;
-      var rowData=result.headerIndices.map(function(idx){return allVals[idx]||'';});
-      if (rowData.filter(function(v){return v!=='';}).length>=2) result.rows.push(rowData);
+    if(headerRowIdx>=0&&r>headerRowIdx&&startCol>=0) {
+      if(!rowText.join('').trim()) continue;
+      if(rowStr.indexOf('legenda')>=0||rowStr.indexOf('relat')>=0) break;
+      var rowData=[];
+      for(var di=startCol;di<startCol+8;di++) rowData.push(rowText[di]||'');
+      if(rowData.filter(function(v){return v!=='';}).length>=2) result.rows.push(rowData);
     }
   }
+  result.headers=headers;
   return result;
 }
 
-// ── Render ───────────────────────────
-function parseConcluidas(rows) {
-  var result = {total:'', periodo:'', headers:['#','EDT','Atividade','HH Prev.','% Anterior','% Atual','Início','Término Real'], rows:[]};
-  var headerRowIdx = -1, startCol = -1;
-
-  for (var r = 0; r < rows.length; r++) {
-    if (!rows[r]||!rows[r].c) continue;
-    var cells = rows[r].c;
-    var rowText = cells.map(function(c){
-      return c ? String(c.v!=null?c.v:(c.f||'')).trim() : '';
-    });
-    var rowStr = rowText.join('|').toLowerCase();
-
-    // Total e Período
-    if (rowStr.indexOf('total de atividades')>=0) {
-      for (var ci=0;ci<rowText.length;ci++) {
-        if (rowText[ci].toLowerCase().indexOf('total de atividades')>=0) {
-          result.total = rowText[ci+1]||rowText[ci+2]||''; break;
-        }
-      }
-    }
-    if (rowStr.indexOf('per')>=0&&rowStr.indexOf('nalise')>=0) {
-      for (var ci2=0;ci2<rowText.length;ci2++) {
-        var rv2=rowText[ci2].toLowerCase();
-        if (rv2.indexOf('per')>=0&&rv2.indexOf('nali')>=0) {
-          result.periodo = rowText[ci2+1]||rowText[ci2+2]||''; break;
-        }
-      }
-    }
-
-    // Localiza cabeçalho (linha com # e EDT)
-    if (rowStr.indexOf('edt')>=0&&rowStr.indexOf('atividade')>=0&&headerRowIdx<0) {
-      headerRowIdx = r;
-      for (var hi=0;hi<rowText.length;hi++) {
-        if (rowText[hi]==='#') { startCol=hi; break; }
-      }
-      continue;
-    }
-
-    // Lê dados — 8 colunas a partir de startCol
-    if (headerRowIdx>=0&&r>headerRowIdx&&startCol>=0) {
-      if (!rowText.join('').trim()) continue;
-      if (rowStr.indexOf('legenda')>=0||rowStr.indexOf('relat')>=0) break;
-      var rowData=[];
-      for (var di=startCol;di<startCol+8;di++) {
-        rowData.push(rowText[di]||'');
-      }
-      if (rowData.filter(function(v){return v!=='';}).length>=2) result.rows.push(rowData);
-    }
-  }
-  return result;
+function buildConclSection(concl) {
+  if(!concl||!concl.rows||!concl.rows.length) return '';
+  var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
+  var rows=concl.rows.map(function(row){
+    return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
+      +concl.headers.map(function(h,i){
+        var val=row[i]||'—', hl=h.toLowerCase();
+        if(h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
+        if(hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
+        if(hl.indexOf('anterior')>=0) return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+fmtPct(val)+'</span></td>';
+        if(hl.indexOf('atual')>=0) return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+fmtPct(val)+'</span></td>';
+        if(hl.indexOf('in')>=0||hl.indexOf('rmino')>=0) return '<td style="'+s+'white-space:nowrap">'+val+'</td>';
+        return '<td style="'+s+'">'+val+'</td>';
+      }).join('')+'</tr>';
+  }).join('');
+  var badge='<span style="background:#d1fae5;border-radius:8px;padding:4px 14px;font-size:12px;font-weight:600;color:#065f46">Total: '+(concl.total||concl.rows.length)+' atividade(s)</span>';
+  var periodo=concl.periodo?'<span style="background:#f0f9ff;border-radius:8px;padding:4px 14px;font-size:11px;color:#0369a1">'+concl.periodo+'</span>':'';
+  return '<div class="card-full">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
+    +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'+badge+periodo+'</div></div>'
+    +'<div class="tbl-wrap"><table><thead><tr>'
+    +concl.headers.map(function(h){
+      var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
+      return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
+    }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 
 function render(d, curva, concl, ts) {
   var ahead=d.dPct>=0;
-
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
     return '<tr class="data-row" onclick="toggleObs('+i+')">'
@@ -386,44 +325,11 @@ function render(d, curva, concl, ts) {
       +(hasObs?'<tr id="obs-'+i+'" class="obs-row" style="display:none"><td colspan="9"><strong style="color:#0f2d5c">Observação:</strong> '+t.obs+'</td></tr>':'');
   }).join('');
 
-  var conclSection='';
-  if (concl && concl.rows && concl.rows.length>0) {
-    var conclRows=concl.rows.map(function(row){
-      return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
-        +concl.headers.map(function(h,i){
-          var val=row[i]||'—';
-          var hl=h.toLowerCase();
-          var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
-          if (h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
-          if (hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
-          if (hl.indexOf('anterior')>=0) return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+val+'</span></td>';
-          if (hl.indexOf('atual')>=0) return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+val+'</span></td>';
-          if (hl.indexOf('in\u00edcio')>=0||hl.indexOf('t\u00e9rmino')>=0||hl.indexOf('termino')>=0||hl.indexOf('inicio')>=0) return '<td style="'+s+'white-space:nowrap">'+val+'</td>';
-          return '<td style="'+s+'">'+val+'</td>';
-        }).join('')
-        +'</tr>';
-    }).join('');
-    conclSection='<div class="card-full">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px">'
-      +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
-      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
-      +(concl.total?'<span style="background:#d1fae5;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;color:#065f46">Total: '+concl.total+' atividade(s)</span>':'')
-      +(concl.periodo?'<span style="background:#f0f9ff;border-radius:8px;padding:5px 12px;font-size:11px;color:#0369a1">'+concl.periodo+'</span>':'')
-      +'</div></div>'
-      +'<div class="tbl-wrap"><table><thead><tr>'
-      +concl.headers.map(function(h){
-        var hl=h.toLowerCase();
-        var align=(h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0)?'style="text-align:center"':'';
-        return '<th '+align+'>'+h+'</th>';
-      }).join('')
-      +'</tr></thead><tbody>'+conclRows+'</tbody></table></div></div>';
-  }
-
   document.getElementById('app').innerHTML=
     '<div class="hdr">'
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'
     +'<img src="./Logo_Passaura.png" alt="Irmãos Passaúra" onerror="this.src=\'./Logo_Passaura.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
-    +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratada</span>'
+    +'<span style="font-size:9px;opacity:.65;text-transform:uppercase">Contratada</span>'
     +(d.dataAtual?'<span style="font-size:10px;font-weight:500;color:#fff;opacity:.9;margin-top:2px">Data: '+d.dataAtual+'</span>':'')
     +'</div>'
     +'<div style="flex:1;padding:0 18px">'
@@ -434,7 +340,7 @@ function render(d, curva, concl, ts) {
     +'<div class="hdr-r">'
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">'
     +'<img src="./Logo_Adm.png" alt="ADM do Brasil" onerror="this.src=\'./Logo_Adm.jpg\'" style="height:52px;max-width:130px;object-fit:contain;background:#fff;padding:5px 8px;border-radius:7px">'
-    +'<span style="font-size:9px;opacity:.65;letter-spacing:.03em;text-transform:uppercase">Contratante</span>'
+    +'<span style="font-size:9px;opacity:.65;text-transform:uppercase">Contratante</span>'
     +'</div>'
     +'<div class="hdr-date">Atualizado: '+ts+'</div>'
     +'<div class="hdr-author">Raphael Justi Medeiros</div>'
@@ -477,72 +383,7 @@ function render(d, curva, concl, ts) {
     :'<div class="tbl-wrap"><table><thead><tr><th>EDT</th><th>Atividade</th><th style="text-align:center">Real</th><th style="text-align:center">Prev.</th><th style="text-align:center">Desvio</th><th style="text-align:center">Término</th><th>Área</th><th>Responsável</th><th style="width:28px"></th></tr></thead><tbody>'+topRows+'</tbody></table></div>')
     +'</div>'
 
-    +conclSection
-
-    +(concl&&concl.rows&&concl.rows.length>0?
-      '<div class="card-full">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
-      +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-      +(concl.total?'<span style="background:#d1fae5;border-radius:8px;padding:4px 14px;font-size:12px;font-weight:600;color:#065f46">Total: '+concl.total+'</span>':'')
-      +(concl.periodo?'<span style="background:#f0f9ff;border-radius:8px;padding:4px 14px;font-size:11px;color:#0369a1">'+concl.periodo+'</span>':'')
-      +'</div></div>'
-      +'<div class="tbl-wrap"><table><thead><tr>'
-      +concl.headers.map(function(h){
-        var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
-        return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
-      }).join('')
-      +'</tr></thead><tbody>'
-      +concl.rows.map(function(row){
-        return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
-          +concl.headers.map(function(h,i){
-            var val=row[i]||'—',hl=h.toLowerCase();
-            var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
-            if (h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
-            if (hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
-            if (hl.indexOf('anterior')>=0){var pa=parseFloat(val)||0;if(pa>0&&pa<=1)pa=Math.round(pa*100);else pa=Math.round(pa);return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+pa+'%</span></td>';}
-            if (hl.indexOf('atual')>=0){var pu=parseFloat(val)||0;if(pu>0&&pu<=1)pu=Math.round(pu*100);else pu=Math.round(pu);return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+pu+'%</span></td>';}
-            if (hl.indexOf('in')>=0||hl.indexOf('rmino')>=0) return '<td style="'+s+'white-space:nowrap">'+val+'</td>';
-            return '<td style="'+s+'">'+val+'</td>';
-          }).join('')+'</tr>';
-      }).join('')
-      +'</tbody></table></div></div>'
-    :'')
-      '<div class="card-full">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:14px">'
-      +'<div class="ct" style="margin:0">✅ Atividades Concluídas no Período</div>'
-      +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
-      +(concl.total?'<span style="background:#d1fae5;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:600;color:#065f46">Total: '+concl.total+'</span>':'')
-      +(concl.periodo?'<span style="background:#f0f9ff;border-radius:8px;padding:4px 12px;font-size:11px;color:#0369a1">'+concl.periodo+'</span>':'')
-      +'</div></div>'
-      +'<div class="tbl-wrap"><table><thead><tr>'
-      +concl.headers.map(function(h){
-        var hl=h.toLowerCase();
-        var center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
-        return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
-      }).join('')
-      +'</tr></thead><tbody>'
-      +concl.rows.map(function(row){
-        return '<tr onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\'\'">'
-          +concl.headers.map(function(h,i){
-            var val=row[i]||'—', hl=h.toLowerCase();
-            var s='padding:9px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;';
-            if (h==='#') return '<td style="'+s+'text-align:center;color:#9ca3af;font-size:10px">'+val+'</td>';
-            if (hl.indexOf('hh')>=0) return '<td style="'+s+'text-align:center;font-weight:500">'+val+'</td>';
-            if (hl.indexOf('anterior')>=0) {
-              var pa=parseFloat(val)||0; if(pa>0&&pa<=1)pa=Math.round(pa*100); else pa=Math.round(pa);
-              return '<td style="'+s+'text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600">'+pa+'%</span></td>';
-            }
-            if (hl.indexOf('atual')>=0) {
-              var pu=parseFloat(val)||0; if(pu>0&&pu<=1)pu=Math.round(pu*100); else pu=Math.round(pu);
-              return '<td style="'+s+'text-align:center"><span style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700">'+pu+'%</span></td>';
-            }
-            return '<td style="'+s+'">'+val+'</td>';
-          }).join('')
-          +'</tr>';
-      }).join('')
-      +'</tbody></table></div></div>'
-    :'')
+    +buildConclSection(concl)
 
     +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid">'
     +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div>'
@@ -552,13 +393,11 @@ function render(d, curva, concl, ts) {
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
-  // Donut
-  if (chartDonut) chartDonut.destroy();
+  if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
 
-  // Curva S
-  if (chartCurva) chartCurva.destroy();
-  if (curva&&curva.labels.length>0) {
+  if(chartCurva) chartCurva.destroy();
+  if(curva&&curva.labels.length>0){
     chartCurva=new Chart(document.getElementById('curvaChart'),{type:'line',data:{labels:curva.labels,datasets:[
       {label:'Previsto Acumulado',data:curva.previsto,borderColor:'#2563eb',borderWidth:2,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:false,spanGaps:true,backgroundColor:'transparent'},
       {label:'Realizado Acumulado',data:curva.realizado,borderColor:'#f59e0b',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:0.3,fill:'origin',backgroundColor:'rgba(5,120,80,0.13)',spanGaps:true},
@@ -566,8 +405,8 @@ function render(d, curva, concl, ts) {
     ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.dataset.label+': '+(c.raw!=null?c.raw.toFixed(1)+'%':'—');}}},filler:{propagate:false}},
       scales:{
-        x:{title:{display:true,text:'Data',font:{size:11,weight:'500'},color:'#6b7280',padding:{top:8}},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},
-        y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11,weight:'500'},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}
+        x:{title:{display:true,text:'Data',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',maxRotation:0,autoSkip:true,maxTicksLimit:9},grid:{color:'#f3f4f6'}},
+        y:{min:0,max:100,title:{display:true,text:'% Acumulado',font:{size:11},color:'#6b7280'},ticks:{font:{size:10},color:'#9ca3af',stepSize:10,callback:function(v){return v+'%';}},grid:{color:'#f3f4f6'}}
       }
     }});
   } else {
@@ -578,7 +417,7 @@ function render(d, curva, concl, ts) {
 
 function showError(msg) {
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'<br><br><strong>Solução:</strong> Compartilhar → "Qualquer pessoa com o link" → Leitor → Salvar</div>';
+  document.getElementById('app').innerHTML='<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div><h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r"><div class="hdr-date">'+ts+'</div><button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div><div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: '+msg+'</div>';
 }
 
 function init() {
@@ -587,15 +426,11 @@ function init() {
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
     fetchGviz(SHEET_ID,GID),
-    fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva S:',e.message);return null;}),
+    fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;})
   ]).then(function(results){
-    try {
-      render(parseRelatorio(results[0]), results[1]?parseCurva(results[1]):null, results[2]?parseConcluidas(results[2]):null, ts);
-    } catch(err) {
-      console.error('Erro render:',err);
-      showError(err.message);
-    }
+    try{render(parseRelatorio(results[0]),results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts);}
+    catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
 
