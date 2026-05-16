@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="google" content="notranslate">
+<title>Dashboard Gerencial — ADM do Brasil | Irmãos Passaúra</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto;padding:24px}
+.hdr{background:#0f2d5c;color:#fff;padding:20px 28px;border-radius:12px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.hdr-co{font-size:10px;font-weight:600;opacity:.65;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.hdr h1{font-size:19px;font-weight:600;margin-bottom:3px}
+.hdr-sub{font-size:12px;opacity:.65}
+.hdr-r{text-align:right}
+.hdr-date{font-size:12px;font-weight:500}
+.btn-ref{margin-top:8px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 14px;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit}
+.btn-ref:hover{background:rgba(255,255,255,.25)}.btn-ref:disabled{opacity:.5;cursor:not-allowed}
+.card-full{background:#fff;border-radius:10px;border:1px solid #e8eaed;padding:20px;margin-bottom:20px}
+.ct{font-size:13px;font-weight:600;color:#111;margin-bottom:16px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;justify-content:center}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280}
+.leg-box{width:14px;height:14px;border-radius:3px;flex-shrink:0}
+.loading{text-align:center;padding:80px;color:#6b7280;font-size:14px}
+.err-box{background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:20px;margin:16px 0;font-size:13px;color:#856404;line-height:1.8}
+.debug-box{background:#e0f2fe;border:1px solid:#0ea5e9;border-radius:10px;padding:16px;margin:16px 0;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:400px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app">
+    <div class="loading">⏳ Carregando dados da planilha...</div>
+  </div>
+  <div id="debug" class="debug-box" style="display:none"></div>
+</div>
+
+<script>
+// Configuração das planilhas
+var SHEET_ID = '1_LDIHQHe809hWdfuVP8MQQqWvzauhDYB';
+var SHEET_CTRL_ATUAL = 'Controle de Atividades';
+var GID_CRONO_ANT = '1153967303';
+
+var chartAvancos = null;
+var debugLog = [];
+
+function log(msg) {
+  debugLog.push(msg);
+  console.log(msg);
+}
+
+// Funções auxiliares
+function toNum(v, fb) {
+  if (fb === undefined) fb = 0;
+  if (v == null) return fb;
+  if (typeof v === 'number') return v >= -1 && v <= 1 ? +(v * 100).toFixed(2) : v;
+  var s = String(v).trim().replace(/%/g, '');
+  s = s.replace(/,(\d{1,2})$/, '.$1');
+  s = s.replace(/[^0-9.\-]/g, '');
+  return parseFloat(s) || fb;
+}
+
+function cStr(cell) {
+  if (!cell) return '';
+  var v = cell.v != null ? cell.v : (cell.f || '');
+  return String(v).trim();
+}
+
+function fetchGviz(sheetId, sheetParam) {
+  var param = /^\d+$/.test(sheetParam) ? 'gid=' + sheetParam : 'sheet=' + encodeURIComponent(sheetParam);
+  var url = 'https://docs.google.com/spreadsheets/d/' + sheetId + '/gviz/tq?tqx=out:json&' + param;
+  log('📡 Buscando: ' + url);
+  return fetch(url, {cache: 'no-store'})
+    .then(function(res) { return res.text(); })
+    .then(function(txt) {
+      var js = txt.match(/setResponse\(([\s\S]*?)\);?\s*$/);
+      if (!js) throw new Error('Resposta inesperada. Verifique se a planilha está pública.');
+      return JSON.parse(js[1]).table.rows;
+    });
+}
+
+// Parser para Controle de Atividades e Cronograma Anterior
+function parseCronograma(rows, sheetName) {
+  log('\n📊 === PARSING: ' + sheetName + ' ===');
+  log('Total de linhas: ' + rows.length);
+  
+  var data = '', colEdt = -1, colAtiv = -1, colPct = -1, headerRowIdx = -1;
+  
+  // Detectar data de controle e cabeçalho
+  for (var r = 0; r < Math.min(15, rows.length); r++) {
+    if (!rows[r] || !rows[r].c) continue;
+    
+    var allText = rows[r].c.map(function(c) { return cStr(c); }).join(' ');
+    var dm = allText.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+    if (dm && !data) {
+      data = dm[1];
+      log('📅 Data encontrada na linha ' + r + ': ' + data);
+    }
+    
+    // Mostrar as primeiras linhas para debug
+    if (r < 5) {
+      var preview = rows[r].c.slice(0, 8).map(function(c, i) {
+        return 'Col' + i + '=' + cStr(c).substring(0, 20);
+      }).join(' | ');
+      log('Linha ' + r + ': ' + preview);
+    }
+    
+    // Buscar linha de cabeçalho
+    var rowStr = rows[r].c.map(function(c) { return cStr(c); }).join('|').toLowerCase();
+    
+    // Tentar detectar cabeçalho com EDT e ATIVIDADE
+    if (rowStr.indexOf('edt') >= 0 && rowStr.indexOf('atividade') >= 0) {
+      log('\n✅ Linha de cabeçalho detectada: linha ' + r);
+      headerRowIdx = r;
+      
+      for (var ci = 0; ci < rows[r].c.length; ci++) {
+        var h = cStr(rows[r].c[ci]).toLowerCase();
+        log('  Col ' + ci + ': "' + h + '"');
+        
+        if (h === 'edt') colEdt = ci;
+        if (h === 'atividade' || (h.indexOf('atividade') >= 0 && h.length < 25)) colAtiv = ci;
+        if (h.indexOf('realizado') >= 0 || (h.indexOf('%') >= 0 && h.indexOf('conclu') >= 0)) colPct = ci;
+      }
+      
+      log('🎯 Colunas detectadas: EDT=' + colEdt + ', ATIVIDADE=' + colAtiv + ', %=' + colPct);
+      break;
+    }
+  }
+  
+  if (headerRowIdx < 0 || colEdt < 0 || colAtiv < 0 || colPct < 0) {
+    log('❌ ERRO: Cabeçalho não encontrado ou colunas incompletas');
+    return {data: data, activities: {}, count: 0};
+  }
+  
+  var activities = {};
+  var count = 0;
+  
+  for (var r2 = headerRowIdx + 1; r2 < Math.min(headerRowIdx + 50, rows.length); r2++) {
+    if (!rows[r2] || !rows[r2].c) continue;
+    
+    var edt = cStr(rows[r2].c[colEdt]);
+    if (!edt || edt.toLowerCase() === 'edt' || edt.length < 2) continue;
+    
+    var ativ = cStr(rows[r2].c[colAtiv]);
+    var pctCell = rows[r2].c[colPct];
+    var pct = pctCell ? toNum(pctCell.v != null ? pctCell.v : (pctCell.f || ''), 0) : 0;
+    
+    if (ativ && edt) {
+      activities[edt] = {ativ: ativ, pct: pct};
+      count++;
+      
+      if (count <= 5) {
+        log('  ✓ ' + edt + ' | ' + ativ.substring(0, 30) + '... | ' + pct.toFixed(1) + '%');
+      }
+    }
+  }
+  
+  log('📝 Total de atividades encontradas: ' + count);
+  return {data: data, activities: activities, count: count};
+}
+
+// Construir dados para o gráfico de Top Avanços
+function buildTopAvancos(atual, anterior) {
+  log('\n🔄 === COMPARANDO DADOS ===');
+  log('Atual: ' + atual.count + ' atividades (data: ' + atual.data + ')');
+  log('Anterior: ' + anterior.count + ' atividades (data: ' + anterior.data + ')');
+  
+  if (!atual.activities || !anterior.activities || atual.count === 0 || anterior.count === 0) {
+    log('❌ ERRO: Uma das planilhas não tem atividades');
+    return null;
+  }
+  
+  var deltas = [];
+  var matchCount = 0;
+  var noMatchCount = 0;
+  
+  for (var edt in atual.activities) {
+    if (!atual.activities.hasOwnProperty(edt)) continue;
+    
+    var atualPct = atual.activities[edt].pct;
+    var anteriorPct = anterior.activities[edt] ? anterior.activities[edt].pct : 0;
+    var delta = atualPct - anteriorPct;
+    
+    if (anterior.activities[edt]) {
+      matchCount++;
+    } else {
+      noMatchCount++;
+    }
+    
+    // Apenas atividades com progresso positivo
+    if (delta > 0) {
+      deltas.push({
+        edt: edt,
+        ativ: atual.activities[edt].ativ,
+        atual: atualPct,
+        anterior: anteriorPct,
+        delta: delta
+      });
+    }
+  }
+  
+  log('🔍 EDTs que batem: ' + matchCount);
+  log('⚠️ EDTs só no atual: ' + noMatchCount);
+  log('📈 Atividades com avanço positivo: ' + deltas.length);
+  
+  if (deltas.length > 0) {
+    // Ordenar por delta decrescente
+    deltas.sort(function(a, b) { return b.delta - a.delta; });
+    
+    log('\n🏆 TOP 5 MAIORES AVANÇOS:');
+    for (var i = 0; i < Math.min(5, deltas.length); i++) {
+      log('  ' + (i+1) + '. ' + deltas[i].edt + ' | Delta: +' + deltas[i].delta.toFixed(1) + '% | Atual: ' + deltas[i].atual.toFixed(1) + '% | Ant: ' + deltas[i].anterior.toFixed(1) + '%');
+    }
+  }
+  
+  var top = deltas.slice(0, 8);
+  
+  return {
+    top: top,
+    dataAtual: atual.data,
+    dataAnterior: anterior.data
+  };
+}
+
+// Renderizar o gráfico
+function renderGrafico(topAvancos, ts) {
+  document.getElementById('debug').style.display = 'block';
+  document.getElementById('debug').textContent = debugLog.join('\n');
+  
+  var html = '<div class="hdr">'
+    + '<div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div>'
+    + '<h1>Relatório Gerencial — Montagem Mecânica</h1>'
+    + '<div class="hdr-sub">Top Avanços Físicos do Período (DEBUG ATIVO)</div></div>'
+    + '<div class="hdr-r">'
+    + '<div class="hdr-date">Atualizado: ' + ts + '</div>'
+    + '<button class="btn-ref" onclick="init()">↺ Atualizar</button>'
+    + '</div></div>';
+  
+  if (!topAvancos || !topAvancos.top || topAvancos.top.length === 0) {
+    html += '<div class="err-box"><strong>⚠ Nenhum avanço detectado no período.</strong><br>Verifique o log de debug abaixo para mais detalhes.</div>';
+    document.getElementById('app').innerHTML = html;
+    return;
+  }
+  
+  html += '<div class="card-full">'
+    + '<div class="ct">▲ Top 8 Avanços Físicos do Período</div>'
+    + '<div class="legend">'
+    + '<div class="leg"><div class="leg-box" style="background:#60a5fa"></div><span>Anterior'
+    + (topAvancos.dataAnterior ? ' (' + topAvancos.dataAnterior + ')' : '') + '</span></div>'
+    + '<div class="leg"><div class="leg-box" style="background:#10b981"></div><span>Atual'
+    + (topAvancos.dataAtual ? ' (' + topAvancos.dataAtual + ')' : '') + '</span></div>'
+    + '</div>'
+    + '<canvas id="chartAvancos" style="max-height:450px"></canvas>'
+    + '</div>';
+  
+  document.getElementById('app').innerHTML = html;
+  
+  // Criar gráfico
+  if (chartAvancos) chartAvancos.destroy();
+  
+  var ta = topAvancos.top;
+  var labels = ta.map(function(item) {
+    var ativShort = item.ativ.length > 45 ? item.ativ.substring(0, 42) + '...' : item.ativ;
+    return item.edt + ' - ' + ativShort;
+  });
+  
+  var ctx = document.getElementById('chartAvancos');
+  chartAvancos = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Anterior' + (topAvancos.dataAnterior ? ' (' + topAvancos.dataAnterior + ')' : ''),
+          data: ta.map(function(item) { return item.anterior; }),
+          backgroundColor: '#60a5fa',
+          borderRadius: 4,
+          barThickness: 28
+        },
+        {
+          label: 'Atual' + (topAvancos.dataAtual ? ' (' + topAvancos.dataAtual + ')' : ''),
+          data: ta.map(function(item) { return item.atual; }),
+          backgroundColor: '#10b981',
+          borderRadius: 4,
+          barThickness: 28
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: {
+            font: {size: 11},
+            color: '#6b7280',
+            padding: 12,
+            usePointStyle: true,
+            pointStyle: 'rect'
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              var label = context.dataset.label || '';
+              return ' ' + label + ': ' + context.parsed.x.toFixed(0) + '%';
+            }
+          }
+        },
+        datalabels: {
+          anchor: 'end',
+          align: 'end',
+          formatter: function(value) {
+            return value > 0 ? value.toFixed(0) + '%' : '';
+          },
+          font: {
+            size: 10,
+            weight: 'bold'
+          },
+          color: '#374151'
+        }
+      },
+      scales: {
+        x: {
+          min: 0,
+          max: 100,
+          title: {
+            display: true,
+            text: '% Concluído',
+            font: {size: 11, weight: '500'},
+            color: '#6b7280'
+          },
+          ticks: {
+            font: {size: 10},
+            color: '#9ca3af',
+            callback: function(value) {
+              return value + '%';
+            }
+          },
+          grid: {
+            color: '#f3f4f6'
+          }
+        },
+        y: {
+          ticks: {
+            font: {size: 10},
+            color: '#374151',
+            autoSkip: false
+          },
+          grid: {
+            display: false
+          }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
+  });
+}
+
+function showError(msg) {
+  document.getElementById('debug').style.display = 'block';
+  document.getElementById('debug').textContent = debugLog.join('\n');
+  
+  var ts = new Date().toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  document.getElementById('app').innerHTML = 
+    '<div class="hdr"><div><div class="hdr-co">Irmãos Passaúra · ADM do Brasil</div>'
+    + '<h1>Relatório Gerencial — Montagem Mecânica</h1></div><div class="hdr-r">'
+    + '<div class="hdr-date">' + ts + '</div>'
+    + '<button class="btn-ref" onclick="init()">↺ Tentar novamente</button></div></div>'
+    + '<div class="err-box"><strong>⚠ Não foi possível carregar os dados.</strong><br>Erro: ' + msg + '</div>';
+}
+
+function init() {
+  debugLog = [];
+  log('🚀 Iniciando carregamento...');
+  
+  var btn = document.querySelector('.btn-ref');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '↺ Carregando...';
+  }
+  
+  var ts = new Date().toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  
+  Promise.all([
+    fetchGviz(SHEET_ID, SHEET_CTRL_ATUAL),
+    fetchGviz(SHEET_ID, GID_CRONO_ANT)
+  ]).then(function(results) {
+    try {
+      var atualData = parseCronograma(results[0], 'Controle de Atividades');
+      var anteriorData = parseCronograma(results[1], 'Cronograma Anterior');
+      var topAvancos = buildTopAvancos(atualData, anteriorData);
+      renderGrafico(topAvancos, ts);
+    } catch (err) {
+      console.error(err);
+      log('\n❌ ERRO FATAL: ' + err.message);
+      showError(err.message);
+    }
+  }).catch(function(e) {
+    log('\n❌ ERRO DE FETCH: ' + e.message);
+    showError(e.message);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
