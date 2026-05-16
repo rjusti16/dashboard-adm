@@ -6,6 +6,7 @@
 <meta name="google" content="notranslate">
 <title>Dashboard Gerencial — ADM do Brasil | Irmãos Passaúra</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;color:#1a1a2e;min-height:100vh}
@@ -68,7 +69,7 @@ tbody tr.obs-row td{background:#f0f6ff;border-left:3px solid #2563eb;font-size:1
 .curva-leg{display:flex;gap:20px;margin-bottom:12px;justify-content:center;flex-wrap:wrap}
 .curva-leg-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280}
 .curva-leg-line{width:28px;height:3px;border-radius:2px}
-.loading{text-align:center;padding:80px;color:#6b7280;font-size:14px}
+.av-wrap{margin-bottom:20px;border-radius:10px;overflow:hidden;border:1px solid #e8eaed}.av-hdr{background:#1a4731;color:#fff;padding:11px 18px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px}.av-body{background:#fff;padding:18px 20px 14px}.av-legend{display:flex;gap:20px;justify-content:center;margin-top:12px;flex-wrap:wrap}.av-leg{display:flex;align-items:center;gap:7px;font-size:11px;color:#555}.av-dot{width:13px;height:13px;border-radius:2px;flex-shrink:0}.loading{text-align:center;padding:80px;color:#6b7280;font-size:14px}
 .err-box{background:#fff3cd;border:1px solid #ffc107;border-radius:10px;padding:20px;margin:16px 0;font-size:13px;color:#856404;line-height:1.8}
 footer{text-align:center;padding:16px 0;font-size:10px;color:#9ca3af}
 @media(max-width:800px){.kpi-grid{grid-template-columns:repeat(3,1fr)}.row2{grid-template-columns:1fr}.rs-grid{grid-template-columns:1fr}}
@@ -84,8 +85,12 @@ var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
 
-var chartDonut = null;
-var chartCurva = null;
+var ANTERIOR_DATE = '05/05';
+var ANTERIOR_DATA = {"1.2.3.2.1.21":{"ativ":"Redler - RDL-2541 - Elev. + 2.800","real":93.0},"1.2.1.3.1.4.5":{"ativ":"Montagem do Duto entre Filtro x Redler RDL-2401","real":87.0},"1.2.1.3.1.4.6":{"ativ":"Montagem do Duto entre Filtro x Silo SIL-2410","real":91.0},"1.2.1.4.3":{"ativ":"Adequação Tubulação","real":94.0},"1.2.2.5.3.21":{"ativ":"Estrutura do SIL-2510","real":100.0},"1.2.2.5.4.3":{"ativ":"Soprador_Sangati-2566","real":56.0},"1.2.2.5.6":{"ativ":"Fabricação Tubulação e Dutos","real":99.0},"1.2.2.5.7":{"ativ":"Montagem do Chute do Moinho-MOI-2568","real":9.0},"1.2.2.6.3.1":{"ativ":"Redler_RDL-2538 - Elev. + 0 até 13.000","real":67.0},"2.2.4":{"ativ":"Montagem do Guarda Corpo - Escada de Acesso 2°","real":92.0},"2.2.5":{"ativ":"Montagem do Guarda Corpo - Escada de Acesso 3°","real":93.0},"1.2.2.6.3.12":{"ativ":"Elevador de Caneca - El-2505 - Elev. 0 até 18.000","real":73.0},"1.2.2.6.3.13":{"ativ":"Elevador de Caneca - El-2515 - Elev. 0 até 18.000","real":77.0},"1.2.2.6.3.14":{"ativ":"Elevador de Caneca - El-2532 - Elev. 0 até 18.000","real":82.0},"1.2.2.6.3.15":{"ativ":"Hidraulic_Pump_Station - Elev. 6.000","real":94.0},"1.2.2.6.3.16":{"ativ":"Filtro de Manga-MOI-2568 - Elev. 3.600","real":35.0},"1.2.2.6.3.17":{"ativ":"Houper / Rosca do Moi-2568 - Elev. 3.600","real":71.0},"1.2.2.6.3.18":{"ativ":"Redler_RDL-2528 A - Elev. + 3.600","real":100.0},"1.2.2.6.3.19":{"ativ":"Filtro de Manga FM-2569 - Elev. +18.000","real":96.0},"1.2.2.6.3.20":{"ativ":"Rosca ROS-2581 A - Elev. +13.000","real":100.0},"1.2.2.6.3.21":{"ativ":"Silo SIL-2510 - Elev. +8.000","real":31.0},"1.2.3.2.2.24":{"ativ":"Montagem dos Dutos - Preparo Novo","real":88.0},"1.2.3.2.2.32":{"ativ":"Montagem de Tubulações e Suportes","real":97.0},"1.2.2.6.3.22":{"ativ":"Separador Magnético SMG-2511","real":92.0},"1.2.2.6.3.23":{"ativ":"Ventilador_VEN-2572 A Elev + 13.000","real":100.0},"1.2.2.6.3.24":{"ativ":"Ventilador_VEN-2578 A Elev. + 18.000","real":100.0},"1.2.2.6.3.25":{"ativ":"Ventilador_VEN-2578 B Elev. + 18.000","real":100.0},"1.2.2.6.3.26":{"ativ":"Ventilador_VEN-2578 C Elev. + 18.000","real":100.0},"1.2.2.6.3.27":{"ativ":"Ventilador_VEN-2584 B Elev. + 18.000","real":100.0},"1.2.2.6.3.28":{"ativ":"Ventilador VEM / Ciclone - 2536 Relocado","real":38.0},"1.2.2.6.3.7":{"ativ":"Balança_BAL-2510 - Elev. 13.000","real":0.0},"1.2.2.6.4.1.1":{"ativ":"Dutos de captação do filtro de manga","real":99.0},"1.2.2.6.4.1.10":{"ativ":"Duto de Conexão CIC-2578 A x PEN-2575","real":99.0},"1.2.2.6.4.1.11":{"ativ":"Duto de Conexão PEN-2575 x El-2532","real":53.0},"1.2.2.6.4.1.12":{"ativ":"Duto de Conexão CIC-2578 B x SIL-2565","real":24.0},"1.2.2.6.4.1.14":{"ativ":"Duto de Conexão CIC-2578 A x VEM-2578 A","real":94.0},"1.2.2.6.4.1.15":{"ativ":"Duto de Conexão CIC-2578 A x SIL-2565","real":58.0},"1.2.2.6.4.1.16":{"ativ":"Duto de Conexão ROS-2581 x SIL-2565","real":0.0},"1.2.2.6.4.1.18":{"ativ":"Duto de Conexão SIL-2565 x MOI-2568","real":83.0},"1.2.2.6.4.1.19":{"ativ":"Duto de Exaustão - Conexão VEM-2578 C","real":100.0},"1.2.2.6.4.1.2":{"ativ":"Duto de conexão Redler RDL-2538 x Redler RDL-2539","real":57.0},"1.2.2.6.4.1.20":{"ativ":"Duto de Exaustão - Conexão VEM-2578 A","real":100.0},"1.2.2.6.4.1.21":{"ativ":"Duto de Exaustão - Conexão VEM-2584 B","real":76.0},"1.2.2.6.4.1.22":{"ativ":"Duto de Conexão VEM-2584 B ao CIC-2584 B","real":18.0},"1.2.2.6.4.1.26":{"ativ":"Montagem dos suportes dos dutos","real":97.0},"1.2.2.6.4.1.23":{"ativ":"Duto de Conexão Ciclone Existente x RDL-2538","real":0.0},"1.2.2.6.4.1.24":{"ativ":"Duto de Conexão Separador Magnético SMG-2511","real":0.0},"1.2.3.3.7":{"ativ":"Montagem dos chutes EL 2531 para RDL 2528","real":0.0},"1.2.2.6.4.1.27":{"ativ":"Montagem dos Dutos e Chutes - SIL-2510 a SMG-2511","real":0.0},"1.2.2.6.4.1.28":{"ativ":"Montagem dos Dutos e Chutes - CIC-2572 A a PEN-2575","real":0.0},"1.2.2.6.4.1.29":{"ativ":"Montagem do Chute - PEN-2575 a SPC-2577","real":65.0},"1.2.2.6.4.1.3":{"ativ":"Dutos de Conexão RDL-2516 x SIL-2510","real":0.0},"1.2.2.6.4.1.30":{"ativ":"Montagem do Chute - SPC-2577 a El-2532","real":100.0},"1.2.2.6.4.1.31":{"ativ":"Montagem do Chute - RDL-2528 A a EL-2532","real":20.0},"1.2.2.6.4.1.32":{"ativ":"Montagem do Chute - RDL-2528 a RDL-2528 A","real":100.0},"1.2.2.6.4.1.33":{"ativ":"Montagem do Chute EL-2532 para BEAN-HEATER","real":0.0},"1.2.2.6.4.1.34":{"ativ":"Válvula Ciclone CIC-2578 A a Silo SL-2565","real":90.0},"1.2.2.6.4.1.35":{"ativ":"Válvula Ciclone CIC-2584 B para RDL-2541","real":90.0},"1.2.2.6.4.1.36":{"ativ":"Válvula Ciclone CIC-2578 B a Silo SL-2565","real":90.0},"1.2.2.6.4.1.37":{"ativ":"Montagem de Suportes Secundários das Tubulações","real":1.0},"1.2.2.6.4.1.4":{"ativ":"Duto de Conexão EL-2505 x BAL-2510 x SIL-2510","real":0.0},"1.2.2.6.4.1.5":{"ativ":"Duto de Conexão BAL-2510 x SIL-2510","real":0.0},"1.2.3.3.1":{"ativ":"Montagem da corrente do RDL 2516","real":0.0},"1.2.3.3.2":{"ativ":"Montagem da segunda parte do RDL-2541","real":83.0},"1.2.3.3.3":{"ativ":"Montagem do chute de interligação do RDL-2541","real":98.0},"1.2.2.6.4.1.6":{"ativ":"Duto de Conexão SMG-2511 x EL-2515","real":0.0},"1.2.2.6.4.1.8":{"ativ":"Duto que conecta CIC-2572 A x SPC-2526 A","real":94.0},"1.2.3.3.11":{"ativ":"Fechamento do Duto de Aspiração no RDL-2541","real":86.0},"1.2.2.6.4.1.38":{"ativ":"Montagem de Tubulação de Ar comprimido","real":99.0},"1.2.2.6.4.1.39":{"ativ":"Montagem de Tubulação de Vapor de emergência","real":91.0},"1.2.3.3.12":{"ativ":"Desmontagem e Montagem do EL-2531 Realocado","real":42.0},"1.2.3.3.4":{"ativ":"Montagem da Rosca ROS-2530","real":100.0},"1.2.3.3.5":{"ativ":"Dutos 16 SOYC-2500-02-2035","real":0.0}};
+
+var chartDonut  = null;
+var chartCurva  = null;
+var chartAvancos = null;
 
 function toggleObs(idx) {
   var row = document.getElementById('obs-'+idx);
@@ -188,19 +193,39 @@ function parseRelatorio(rows) {
     }
   }
   var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
-  var top20=[],edtPos=findPos(rows,'edt',true);
+  var top20=[],allActs=[],edtPos=findPos(rows,'edt',true);
   if (edtPos) {
     var er=edtPos[0],ec=edtPos[1];
-    for (var j=1;j<=20;j++) {
-      var edt=cv(rows,er+j,ec); if(!edt) continue;
+    var _found=false;
+    for (var j=1;j<=100;j++) {
+      var edt=cv(rows,er+j,ec);
+      if(!edt){if(_found)break;continue;}           // para no 1º vazio após dados
+      if(!/^\d/.test(String(edt).trim())) continue; // ignora linhas que não são EDT
+      _found=true;
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
       var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
-      top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+      // allActs: todas as atividades (para gráfico de avanços)
+      allActs.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2))});
+      // top20: apenas as 20 primeiras (GS já pré-ordenado por desvio desc)
+      if(top20.length<20){
+        top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+      }
     }
   }
-  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,dataAtual:dataAtual};
+  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,allActs:allActs,dataAtual:dataAtual};
+}
+
+// Converte valor percentual com segurança: trata float overflow (ex: 1.0000563→100)
+function cpct(v) {
+  if(v==null) return null;
+  var n=(typeof v==='number')?v:parseFloat(String(v).replace(/[^0-9.\-]/g,''));
+  if(isNaN(n)) return null;
+  // Decimal 0-1 range (com margem para float): multiplica por 100
+  if(n>=-1.05&&n<=1.05) n=Math.round(n*10000)/100;
+  // Clamp final para [0, 100]
+  return Math.min(Math.max(n,0),100);
 }
 
 function parseCurva(rows) {
@@ -231,13 +256,15 @@ function parseCurva(rows) {
   for (var c2=1;c2<maxCol;c2++) {
     var dCell=dateRow.c&&dateRow.c[c2]; if(!dCell) continue;
     var dv=dCell.f!=null?dCell.f:(dCell.v!=null?dCell.v:null); if(!dv) continue;
-    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim(); if(!/\d/.test(ds)) continue;
+    var ds=String(dv).toLowerCase().replace(/\.$/,'').trim();
+    if(!/\d/.test(ds)) continue;                       // sem dígito → pula
+    if(/^[\d.e+\-]+$/.test(ds)) continue;              // número puro (ex: 1.0000563) → pula
     var pCell=prevRow.c&&prevRow.c[c2],pv=pCell?(pCell.v!=null?pCell.v:pCell.f):null; if(pv==null) continue;
-    labels.push(ds); previsto.push(toNum(pv));
+    labels.push(ds); previsto.push(cpct(pv));
     var rCell=realRow&&realRow.c&&realRow.c[c2],rv=rCell?(rCell.v!=null?rCell.v:rCell.f):null;
-    realizado.push(rv!=null?toNum(rv):null);
+    realizado.push(rv!=null?cpct(rv):null);
     var tCell=tendRow&&tendRow.c&&tendRow.c[c2],tv=tCell?(tCell.v!=null?tCell.v:tCell.f):null;
-    tendencia.push(tv!=null?toNum(tv):null);
+    tendencia.push(tv!=null?cpct(tv):null);
   }
   return {labels:labels,previsto:previsto,realizado:realizado,tendencia:tendencia};
 }
@@ -305,6 +332,127 @@ function buildConclSection(concl) {
       var hl=h.toLowerCase(),center=h==='#'||hl.indexOf('hh')>=0||hl.indexOf('anterior')>=0||hl.indexOf('atual')>=0;
       return '<th'+(center?' style="text-align:center"':'')+'>'+h+'</th>';
     }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+
+
+function buildTopAvancos(allActs, ts) {
+  // Calcula avanços no período (Atual - Anterior)
+  var advances = [];
+  var atelDate = (ts && ts.length >= 5) ? ts.slice(0,5) : '16/05';
+  allActs.forEach(function(a) {
+    var ant = ANTERIOR_DATA[a.edt];
+    if (!ant) return;
+    var adv = +(a.real - ant.real).toFixed(1);
+    if (adv <= 0) return;
+    advances.push({ativ: a.ativ.replace(/^\s+/,''), edt: a.edt,
+                   atual: a.real, anterior: ant.real, adv: adv});
+  });
+  if (!advances.length) return '';
+  advances.sort(function(a, b){ return b.adv - a.adv; });
+  var top = advances.slice(0, 8);
+
+  var h = top.length * 58 + 56;
+  return '<div class="av-wrap">'
+    +'<div class="av-hdr">&#9650; TOP AVANÇOS FÍSICOS DO PERÍODO</div>'
+    +'<div class="av-body">'
+    +'<div style="position:relative;height:'+h+'px"><canvas id="avancosChart"></canvas></div>'
+    +'<div class="av-legend">'
+    +'<div class="av-leg"><div class="av-dot" style="background:#1a6637"></div>'
+    +'Atual ('+atelDate+')</div>'
+    +'<div class="av-leg"><div class="av-dot" style="background:#b8d4f0"></div>'
+    +'Anterior ('+ANTERIOR_DATE+')</div>'
+    +'</div></div></div>';
+}
+
+function renderAvancosChart(allActs, ts) {
+  var atelDate = (ts && ts.length >= 5) ? ts.slice(0,5) : '16/05';
+  var advances = [];
+  allActs.forEach(function(a) {
+    var ant = ANTERIOR_DATA[a.edt];
+    if (!ant) return;
+    var adv = +(a.real - ant.real).toFixed(1);
+    if (adv <= 0) return;
+    advances.push({ativ: a.ativ.replace(/^\s+/,''), edt: a.edt,
+                   atual: a.real, anterior: ant.real, adv: adv});
+  });
+  if (!advances.length) return;
+  advances.sort(function(a, b){ return b.adv - a.adv; });
+  var top = advances.slice(0, 8);
+
+  var el = document.getElementById('avancosChart');
+  if (!el) return;
+  if (chartAvancos) chartAvancos.destroy();
+
+  Chart.register(ChartDataLabels);
+  chartAvancos = new Chart(el, {
+    type: 'bar',
+    plugins: [ChartDataLabels],
+    data: {
+      labels: top.map(function(t){
+        return t.ativ.length > 30 ? t.ativ.slice(0,30) : t.ativ;
+      }),
+      datasets: [
+        {
+          label: 'Atual (' + atelDate + ')',
+          data: top.map(function(t){ return t.atual; }),
+          backgroundColor: '#1a6637',
+          borderRadius: 3,
+          barPercentage: 0.40,
+          categoryPercentage: 0.85,
+          datalabels: {
+            anchor: 'end', align: 'right',
+            color: '#111', font: {size: 11, weight: '700'},
+            formatter: function(v){ return v > 0 ? v.toFixed(0) : ''; }
+          }
+        },
+        {
+          label: 'Anterior (' + ANTERIOR_DATE + ')',
+          data: top.map(function(t){ return t.anterior; }),
+          backgroundColor: '#b8d4f0',
+          borderRadius: 3,
+          barPercentage: 0.40,
+          categoryPercentage: 0.85,
+          datalabels: {
+            anchor: 'end', align: 'right',
+            color: '#4b6f8a', font: {size: 11, weight: '600'},
+            formatter: function(v){ return v.toFixed(0); }
+          }
+        }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {padding: {right: 40}},
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          callbacks: {
+            label: function(c){
+              return '  ' + c.dataset.label + ': ' + c.raw.toFixed(0) + '%';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 108,
+          ticks: {
+            font: {size: 10}, color: '#9ca3af',
+            callback: function(v){ return v <= 100 ? v : ''; }
+          },
+          grid: {color: '#f0f0f0'},
+          border: {display: false}
+        },
+        y: {
+          ticks: {font: {size: 11}, color: '#374151', padding: 6},
+          grid: {display: false},
+          border: {display: false}
+        }
+      }
+    }
+  });
 }
 
 function render(d, curva, concl, ts) {
@@ -385,6 +533,8 @@ function render(d, curva, concl, ts) {
 
     +buildConclSection(concl)
 
+    +buildTopAvancos(d.allActs, ts)
+
     +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid">'
     +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div>'
     +'<div class="rs-item"><div class="rs-bar" style="background:#ef4444;min-height:44px"></div><div><div class="rs-t">Pontos de atenção</div><div class="rs-p">'+d.atrs+' atividades atrasadas ('+Math.round(d.atrs/d.totAc*100)+'% do total).</div></div></div>'
@@ -393,6 +543,7 @@ function render(d, curva, concl, ts) {
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
+  renderAvancosChart(d.allActs, ts);
   if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
 
