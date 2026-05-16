@@ -165,16 +165,27 @@ function parseControlDate(rows) {
   // A data de controle fica sempre em B3 (rows[2].c[1] no GViz)
   function extractDate(cell) {
     if (!cell) return null;
-    var v = String(cell.v != null ? cell.v : '').trim();
-    var f = String(cell.f != null ? cell.f : '').trim();
-    // GViz pode retornar como Date(yyyy,m,d) — mês começa em 0
-    if (/Date\(/.test(v)) {
+    var v = cell.v, f = String(cell.f != null ? cell.f : '').trim();
+    // Caso 1: GViz retorna Date(yyyy, m0, d) — mês começa em 0
+    if (typeof v === 'string' && /Date\(/.test(v)) {
       var m = v.match(/Date\((\d+),(\d+),(\d+)/);
       if (m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
     }
-    // Formato dd/mm/aaaa ou dd-mm-aaaa
-    var dm = (f||v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
-    if (dm) return ('0'+dm[1]).slice(-2)+'/'+('0'+dm[2]).slice(-2);
+    // Caso 2: Serial numérico do Excel (ex: 46157 = 15/05/2026)
+    if (typeof v === 'number' && v > 10000) {
+      var d = new Date(Math.round((v - 25569) * 86400000));
+      return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2);
+    }
+    // Caso 3: String formatada (pode ser mm/dd/aaaa ou dd/mm/aaaa)
+    var s = f || String(v != null ? v : '').trim();
+    var dm = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
+    if (dm) {
+      var n1 = +dm[1], n2 = +dm[2];
+      // Se n1 > 12, só pode ser dia → formato dd/mm
+      // Se n2 > 12, só pode ser dia → formato mm/dd (GViz US locale)
+      if (n2 > 12) return ('0'+n2).slice(-2)+'/'+('0'+n1).slice(-2); // dd/mm
+      return ('0'+n1).slice(-2)+'/'+('0'+n2).slice(-2);              // assume dd/mm
+    }
     return null;
   }
   // Tenta direto em B3 (índice linha 2, coluna 1)
