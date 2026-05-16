@@ -85,8 +85,8 @@ var GID              = '775705987';
 var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
-var SHEET_CRONO_PROJ = 'Cronograma Project';
-var GID_CRONO_ANT    = '1153967303'; // Cronograma Anterior
+var SHEET_CTRL_ATUAL = 'Controle de Atividades';
+var SHEET_CTRL_ANT   = 'Controle de Atividades Anterior';
 
 var chartDonut=null, chartCurva=null, chartAvancos=null;
 
@@ -449,8 +449,8 @@ function init(){
     fetchGviz(SHEET_ID,GID),
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_CRONO_PROJ).catch(function(e){console.warn('Crono Proj:',e.message);return null;}),
-    fetchGviz(SHEET_ID,GID_CRONO_ANT).catch(function(e){console.warn('Crono Ant:',e.message);return null;})
+    fetchGviz(SHEET_ID,SHEET_CTRL_ATUAL).catch(function(e){console.warn('Ctrl Atual:',e.message);return null;}),
+    fetchGviz(SHEET_ID,SHEET_CTRL_ANT).catch(function(e){console.warn('Ctrl Ant:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
