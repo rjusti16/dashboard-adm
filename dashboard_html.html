@@ -160,6 +160,26 @@ function fetchGviz(sheetId, sheetParam) {
   });
 }
 
+function parseControlDate(rows) {
+  for (var r=0;r<Math.min(8,rows.length);r++) {
+    if(!rows[r]||!rows[r].c) continue;
+    for (var c=0;c<rows[r].c.length;c++) {
+      var cell=rows[r].c[c]; if(!cell) continue;
+      var v=String(cell.v!=null?cell.v:'').trim();
+      var f=String(cell.f!=null?cell.f:'').trim();
+      // GViz retorna datas como Date(yyyy,m,d) — m começa em 0
+      if(/Date\(/.test(v)){
+        var m=v.match(/Date\((\d+),(\d+),(\d+)/);
+        if(m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
+      }
+      // Tenta padrão dd/mm/aaaa ou dd-mm-aaaa no valor formatado
+      var dm=(f||v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
+      if(dm) return ('0'+dm[1]).slice(-2)+'/'+('0'+dm[2]).slice(-2);
+    }
+  }
+  return null;
+}
+
 function parseRelatorio(rows) {
   var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='';
   for (var dr=0;dr<Math.min(8,rows.length);dr++) {
@@ -335,10 +355,10 @@ function buildConclSection(concl) {
 }
 
 
-function buildTopAvancos(allActs, ts) {
+function buildTopAvancos(allActs, atualDate, antDate) {
   // Calcula avanços no período (Atual - Anterior)
   var advances = [];
-  var atelDate = (ts && ts.length >= 5) ? ts.slice(0,5) : '16/05';
+  var atelDate = atualDate || '16/05';
   allActs.forEach(function(a) {
     var ant = ANTERIOR_DATA[a.edt];
     if (!ant) return;
@@ -360,12 +380,12 @@ function buildTopAvancos(allActs, ts) {
     +'<div class="av-leg"><div class="av-dot" style="background:#1a6637"></div>'
     +'Atual ('+atelDate+')</div>'
     +'<div class="av-leg"><div class="av-dot" style="background:#b8d4f0"></div>'
-    +'Anterior ('+ANTERIOR_DATE+')</div>'
+    +'Anterior ('+(antDate||ANTERIOR_DATE)+')</div>'
     +'</div></div></div>';
 }
 
-function renderAvancosChart(allActs, ts) {
-  var atelDate = (ts && ts.length >= 5) ? ts.slice(0,5) : '16/05';
+function renderAvancosChart(allActs, atualDate, antDate) {
+  var atelDate = atualDate || '16/05';
   var advances = [];
   allActs.forEach(function(a) {
     var ant = ANTERIOR_DATA[a.edt];
@@ -406,7 +426,7 @@ function renderAvancosChart(allActs, ts) {
           }
         },
         {
-          label: 'Anterior (' + ANTERIOR_DATE + ')',
+          label: 'Anterior (' + (antDate||ANTERIOR_DATE) + ')',
           data: top.map(function(t){ return t.anterior; }),
           backgroundColor: '#b8d4f0',
           borderRadius: 3,
@@ -455,7 +475,7 @@ function renderAvancosChart(allActs, ts) {
   });
 }
 
-function render(d, curva, concl, ts) {
+function render(d, curva, concl, ts, atualDate, antDate) {
   var ahead=d.dPct>=0;
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
@@ -533,7 +553,7 @@ function render(d, curva, concl, ts) {
 
     +buildConclSection(concl)
 
-    +buildTopAvancos(d.allActs, ts)
+    +buildTopAvancos(d.allActs, atualDate, antDate)
 
     +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid">'
     +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div>'
@@ -543,7 +563,7 @@ function render(d, curva, concl, ts) {
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
-  renderAvancosChart(d.allActs, ts);
+  renderAvancosChart(d.allActs, atualDate, antDate);
   if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
 
@@ -578,10 +598,16 @@ function init() {
   Promise.all([
     fetchGviz(SHEET_ID,GID),
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;})
+    fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
+    fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;})
   ]).then(function(results){
-    try{render(parseRelatorio(results[0]),results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts);}
-    catch(err){console.error(err);showError(err.message);}
+    try{
+      var d=parseRelatorio(results[0]);
+      var atualDate=parseControlDate(results[0])||ts.slice(0,5);
+      var antDate=results[3]?parseControlDate(results[3]):ANTERIOR_DATE;
+      if(!antDate) antDate=ANTERIOR_DATE;
+      render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,antDate);
+    }catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
 
