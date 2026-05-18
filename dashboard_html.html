@@ -85,6 +85,7 @@ var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
 var SHEET_ANTERIOR  = 'Controle de Atividades Anterior';
+var SHEET_ID_STATUS = '1-7kpogITEwjA7Fo5Cvhx_6D3c_xl0fBb'; // arquivo com Tabela Dinâmica
 var GID_STATUS      = '1509091341'; // Tabela Dinâmica — GID fixo
 
 var ANTERIOR_DATE = '05/05';
@@ -707,7 +708,7 @@ function init() {
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;}),
-    fetchGviz(SHEET_ID,GID_STATUS,'A3:B8').catch(function(e){console.warn('Status:',e.message);return null;})
+    fetchGviz(SHEET_ID_STATUS,GID_STATUS,'A3:B8').catch(function(e){console.warn('Status:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
