@@ -382,27 +382,49 @@ function buildConclSection(concl) {
 
 
 function parseStatusDist(rows) {
-  // Lê a tabela "STATUS DAS ATIVIDADES" da aba Relatório Gerencial
+  // Varre TODAS as células de cada linha — tabela pode estar em qualquer coluna
   var sd = {conc:0, and:0, atrs:0, ini:0, total:0};
   for (var r=0; r<rows.length; r++) {
     if (!rows[r]||!rows[r].c) continue;
     var cells = rows[r].c;
-    var label = cells[0] ? String(cells[0].v!=null?cells[0].v:(cells[0].f||'')).toLowerCase().trim() : '';
-    var qty   = cells[1] ? (parseFloat(String(cells[1].v!=null?cells[1].v:(cells[1].f||0)))||0) : 0;
-    if (label.indexOf('em andamento') >= 0)  sd.and  = qty;
-    else if (label.indexOf('a iniciar') >= 0) sd.ini  = qty;
-    else if (label.indexOf('conclu')    >= 0) sd.conc = qty;
-    else if (label.indexOf('atras')     >= 0) sd.atrs = qty;
-    else if (label.indexOf('total')     >= 0) sd.total = qty;
+    for (var c=0; c<cells.length; c++) {
+      if (!cells[c]) continue;
+      var label = String(cells[c].v!=null?cells[c].v:(cells[c].f||'')).toLowerCase().trim();
+      if (!label) continue;
+      // Busca o próximo número adjacente (até 3 células à frente)
+      var qty = 0;
+      for (var nc=c+1; nc<cells.length && nc<=c+3; nc++) {
+        if (cells[nc] && cells[nc].v != null) {
+          var q = parseFloat(String(cells[nc].v));
+          if (!isNaN(q) && q >= 0) { qty = q; break; }
+        }
+      }
+      if      (label.indexOf('em andamento') >= 0) sd.and  = qty;
+      else if (label.indexOf('a iniciar')    >= 0) sd.ini  = qty;
+      else if (label.indexOf('conclu')       >= 0) sd.conc = qty;
+      else if (label.indexOf('atras')        >= 0) sd.atrs = qty;
+      else if (label.indexOf('total')        >= 0 && qty > 0) sd.total = qty;
+    }
   }
   return sd;
 }
 
-function renderStatusChart(sd) {
+function renderStatusChart(sd, allActs) {
   var el = document.getElementById('statusChart');
   if (!el) return;
   if (chartStatus) chartStatus.destroy();
-  if (!sd || (!sd.conc && !sd.and && !sd.atrs && !sd.ini)) return;
+  // Fallback: calcula via allActs se a aba não carregou
+  if (!sd || (!sd.conc && !sd.and && !sd.atrs && !sd.ini)) {
+    if (!allActs || !allActs.length) return;
+    sd = {conc:0, and:0, atrs:0, ini:0, total:0};
+    allActs.forEach(function(a) {
+      if      (a.real >= 100)                    sd.conc++;
+      else if (a.real === 0 && a.prev === 0)     sd.ini++;
+      else if (a.real >= a.prev)                 sd.and++;
+      else                                       sd.atrs++;
+    });
+    sd.total = allActs.length;
+  }
   Chart.register(ChartDataLabels);
   chartStatus = new Chart(el, {
     type: 'pie',
@@ -651,7 +673,7 @@ function render(d, curva, concl, ts, atualDate, antDate, sd) {
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
-  renderStatusChart(sd);
+  renderStatusChart(sd, d.allActs);
   renderAvancosChart(d.allActs, atualDate, antDate);
   if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
