@@ -241,12 +241,11 @@ function parseRelatorio(rows) {
   var top20=[],allActs=[],edtPos=findPos(rows,'edt',true);
   if (edtPos) {
     var er=edtPos[0],ec=edtPos[1];
-    var _found=false;
-    for (var j=1;j<=100;j++) {
+    for (var j=1;j<=500;j++) {
       var edt=cv(rows,er+j,ec);
-      if(!edt){if(_found)break;continue;}           // para no 1º vazio após dados
+      if(!edt) continue;                            // pula linhas vazias (células mescladas)
       if(!/^\d/.test(String(edt).trim())) continue; // ignora linhas que não são EDT
-      _found=true;
+      if(allActs.length>=100) break;               // limite de segurança
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
@@ -458,11 +457,7 @@ function renderStatusChart(sd, allActs) {
         borderColor: '#fff',
         borderWidth: 2,
         hoverOffset: 8,
-        datalabels: {
-          color: '#fff',
-          font: {size: 14, weight: '700'},
-          formatter: function(v) { return v > 0 ? v : ''; }
-        }
+        datalabels: { display: false }
       }]
     },
     options: {
