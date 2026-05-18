@@ -148,10 +148,11 @@ function fmtPct(val) {
   return n + '%';
 }
 
-function fetchGviz(sheetId, sheetParam, range) {
+function fetchGviz(sheetId, sheetParam, range, noFilter) {
   var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
   var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
   if (range) url += '&range=' + encodeURIComponent(range);
+  if (noFilter) url += '&tq=' + encodeURIComponent('select *'); // ignora filtros ativos
   var done = false;
   return new Promise(function(resolve, reject) {
     setTimeout(function(){ if(!done){done=true;reject(new Error('Timeout'));}}, 12000);
@@ -702,7 +703,7 @@ function init() {
   if(btn){btn.disabled=true;btn.textContent='↺ Carregando...';}
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
-    fetchGviz(SHEET_ID,GID),
+    fetchGviz(SHEET_ID,GID,null,true), // noFilter: ignora filtro ativo da aba
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;}),
