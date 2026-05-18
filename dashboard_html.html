@@ -148,9 +148,10 @@ function fmtPct(val) {
   return n + '%';
 }
 
-function fetchGviz(sheetId, sheetParam) {
+function fetchGviz(sheetId, sheetParam, range) {
   var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
   var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  if (range) url += '&range=' + encodeURIComponent(range);
   var done = false;
   return new Promise(function(resolve, reject) {
     setTimeout(function(){ if(!done){done=true;reject(new Error('Timeout'));}}, 12000);
@@ -381,45 +382,23 @@ function buildConclSection(concl) {
 
 
 function parseStatusDist(rows) {
-  // Só lê as linhas DENTRO da tabela STATUS DAS ATIVIDADES
-  // para não confundir com textos do Resumo Executivo
+  // Range fixo B9:D15 → cells[0]=STATUS (col B), cells[1]=QTD (col C), cells[2]=%Total (col D)
   var sd = {conc:0, and:0, atrs:0, ini:0, total:0};
-  var inTable = false, headerRow = -1;
   for (var r=0; r<rows.length; r++) {
     if (!rows[r]||!rows[r].c) continue;
     var cells = rows[r].c;
-    var rowStr = cells.map(function(c){
-      return c?String(c.v!=null?c.v:(c.f||'')):''
-    }).join('|').toLowerCase();
-
-    // Detecta cabeçalho da tabela
-    if (!inTable && (rowStr.indexOf('status das atividades')>=0 ||
-        (rowStr.indexOf('status')>=0 && rowStr.indexOf('qtd')>=0))) {
-      inTable = true; headerRow = r; continue;
-    }
-    if (!inTable) continue;
-    if (r > headerRow + 10) break; // limita busca
-
-    // Varre células da linha procurando rótulo de status
-    for (var c=0; c<cells.length; c++) {
-      if (!cells[c]) continue;
-      var label = String(cells[c].v!=null?cells[c].v:(cells[c].f||'')).toLowerCase().trim();
-      if (label.length < 3) continue;
-      // Número na coluna QTD — pula decimais 0-1 (são os % do total)
-      var qty = 0;
-      for (var nc=c+1; nc<cells.length && nc<=c+3; nc++) {
-        if (cells[nc] && cells[nc].v!=null) {
-          var q = parseFloat(String(cells[nc].v));
-          if (!isNaN(q) && q > 1 && q < 500) { qty=q; break; } // >1 garante inteiro, não %
-        }
-      }
-      if      (label.indexOf('em andamento')>=0) { sd.and  = qty; break; }
-      else if (label.indexOf('a iniciar')   >=0) { sd.ini  = qty; break; }
-      else if (label.indexOf('conclu')      >=0) { sd.conc = qty; break; }
-      else if (label.indexOf('atras')       >=0) { sd.atrs = qty; break; }
-      else if (label.indexOf('total')       >=0 && qty>0) { sd.total=qty; break; }
-    }
-    if (rowStr.indexOf('total geral')>=0) break;
+    var c0 = cells[0]; if(!c0) continue;
+    var label = String(c0.v!=null?c0.v:(c0.f||'')).toLowerCase().trim();
+    if (label.length < 3) continue;
+    // QTD está sempre em cells[1] (coluna C)
+    var c1 = cells[1];
+    var qty = c1 ? parseFloat(String(c1.v!=null?c1.v:0)) : 0;
+    if (isNaN(qty)) qty = 0;
+    if      (label.indexOf('em andamento')>=0) sd.and   = qty;
+    else if (label.indexOf('a iniciar')   >=0) sd.ini   = qty;
+    else if (label.indexOf('conclu')      >=0) sd.conc  = qty;
+    else if (label.indexOf('atras')       >=0) sd.atrs  = qty;
+    else if (label.indexOf('total')       >=0 && qty>0) sd.total = qty;
   }
   return sd;
 }
@@ -727,7 +706,7 @@ function init() {
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_STATUS).catch(function(e){console.warn('Status:',e.message);return null;})
+    fetchGviz(SHEET_ID,SHEET_STATUS,'B9:D15').catch(function(e){console.warn('Status:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
