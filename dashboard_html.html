@@ -188,16 +188,33 @@ function parseRelatorio(rows) {
     }
   }
   var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
-  var top20=[],edtPos=findPos(rows,'edt',true);
-  if (edtPos) {
-    var er=edtPos[0],ec=edtPos[1];
-    for (var j=1;j<=20;j++) {
-      var edt=cv(rows,er+j,ec); if(!edt) continue;
+  var top20=[],topPos=findPos(rows,'top 20');
+  if (topPos) {
+    var er=topPos[0],ec=topPos[1];
+    for (var j=1;j<rows.length-er&&top20.length<20;j++) {
+      var edt=cv(rows,er+j,ec), ativ=cv(rows,er+j,ec+1);
+      var rowTxt='';
+      if(rows[er+j]&&rows[er+j].c) rowTxt=rows[er+j].c.map(function(c){return c?String(c.v!=null?c.v:(c.f||'')):'';}).join(' ').toLowerCase();
+      if(rowTxt.indexOf('legenda')>=0||rowTxt.indexOf('documento gerado')>=0||rowTxt.indexOf('não há mais')>=0||rowTxt.indexOf('nao ha mais')>=0) break;
+      if(!edt||String(edt).trim()==='-'||!ativ) continue;
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
       var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
-      top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+      top20.push({edt:String(edt),ativ:String(ativ||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+    }
+  } else {
+    var edtPos=findPos(rows,'edt',true);
+    if (edtPos) {
+      var er2=edtPos[0],ec2=edtPos[1];
+      for (var k=1;k<=20;k++) {
+        var edt2=cv(rows,er2+k,ec2); if(!edt2) continue;
+        var obsC2=rows[er2+k]&&rows[er2+k].c&&rows[er2+k].c[ec2+8];
+        var obsV2=obsC2&&obsC2.v!=null?String(obsC2.v):'';
+        var obsF2=obsC2&&obsC2.f!=null?String(obsC2.f):'';
+        var obsText2=(obsV2.length>=obsF2.length?(obsV2||obsF2):(obsF2||obsV2)).replace(/[\r\n\t]+/g,' ').trim()||'—';
+        top20.push({edt:String(edt2),ativ:String(cv(rows,er2+k,ec2+1)||'—'),real:toNum(cv(rows,er2+k,ec2+2)),prev:toNum(cv(rows,er2+k,ec2+3)),dev:toNum(cv(rows,er2+k,ec2+4)),term:fmtDate(cv(rows,er2+k,ec2+5)),area:String(cv(rows,er2+k,ec2+6)||'—'),resp:String(cv(rows,er2+k,ec2+7)||'—'),obs:obsText2});
+      }
     }
   }
   return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,dataAtual:dataAtual};
