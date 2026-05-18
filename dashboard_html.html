@@ -487,6 +487,7 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +'<div class="hdr-co">Irmãos Passaúra · ADM do Brasil · Uberlândia, MG</div>'
     +'<h1>Relatório Gerencial — Montagem Mecânica</h1>'
     +'<div class="hdr-sub">Área 25001 · Parada Geral · Preparação</div>'
+    +(atualDate?'<div style="margin-top:8px;font-size:12px;font-weight:600;color:#fff;opacity:.85">'+'Data de Corte: '+atualDate.slice(0,5)+(atualDate.length>=5?'/2026':'')+'</div>':'')
     +'</div>'
     +'<div class="hdr-r">'
     +'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;margin-bottom:8px">'
@@ -583,11 +584,17 @@ function init() {
     fetchGviz(SHEET_ID,GID),
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
-    fetchGviz(SHEET_ID,GID_STATUS,'B3:C8').catch(function(e){console.warn('Status:',e.message);return null;})
+    fetchGviz(SHEET_ID,GID_STATUS,'B3:C8').catch(function(e){console.warn('Status:',e.message);return null;}),
+    fetchGviz(SHEET_ID,'1243438454','B3:B3').catch(function(e){console.warn('DataCorte:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
-      var atualDate=parseControlDate(results[0])||ts.slice(0,5);
+      // Data de Corte: tenta B3 do GID 1243438454, depois do GID principal
+      var atualDate=null;
+      if(results[4]&&results[4][0]&&results[4][0].c&&results[4][0].c[0]){
+        atualDate=parseControlDate([results[4][0]]);
+      }
+      if(!atualDate) atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var sd=results[3]?parseStatusDist(results[3]):null;
       render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,sd);
     }catch(err){console.error(err);showError(err.message);}
