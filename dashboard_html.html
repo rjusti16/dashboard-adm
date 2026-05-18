@@ -26,7 +26,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#f0f2f5;color:#1a
 .kpi-lbl{font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
 .kpi-val{font-size:22px;font-weight:600}
 .kpi.g .kpi-val{color:#10b981}.kpi.r .kpi-val{color:#ef4444}.kpi.b .kpi-val{color:#0f2d5c}.kpi.n .kpi-val{color:#374151}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
 .card{background:#fff;border-radius:10px;border:1px solid #e8eaed;padding:20px}
 .card-full{background:#fff;border-radius:10px;border:1px solid #e8eaed;padding:20px;margin-bottom:20px}
 .ct{font-size:13px;font-weight:600;color:#111;margin-bottom:16px}
@@ -85,11 +85,21 @@ var SHEET_ID_CURVA   = '1RZHjs_ne7Vf37WJ__Tbwdf3p_5Fyviim';
 var GID_CURVA        = '0';
 var SHEET_CONCLUIDAS = 'Atividades Conclu\u00eddas Periodo';
 var SHEET_ANTERIOR  = 'Controle de Atividades Anterior';
+var SHEET_ID_STATUS = '1-7kpogITEwjA7Fo5Cvhx_6D3c_xl0fBb'; // arquivo com Tabela Dinâmica
+var GID_STATUS      = '1509091341'; // Tabela Dinâmica — GID fixo
+
+// ─── VALORES MANUAIS DE STATUS ──────────────────────────────────────
+// Atualizar abaixo sempre que a Tabela Dinâmica mudar.
+// Quando o arquivo for compartilhado publicamente, o fetch automático
+// substituirá estes valores.
+var STATUS_MANUAL = {conc:37, and:10, atrs:21, ini:4};
+// ────────────────────────────────────────────────────────────────────
 
 var ANTERIOR_DATE = '05/05';
 var ANTERIOR_DATA = {"1.2.3.2.1.21":{"ativ":"Redler - RDL-2541 - Elev. + 2.800","real":93.0},"1.2.1.3.1.4.5":{"ativ":"Montagem do Duto entre Filtro x Redler RDL-2401","real":87.0},"1.2.1.3.1.4.6":{"ativ":"Montagem do Duto entre Filtro x Silo SIL-2410","real":91.0},"1.2.1.4.3":{"ativ":"Adequação Tubulação","real":94.0},"1.2.2.5.3.21":{"ativ":"Estrutura do SIL-2510","real":100.0},"1.2.2.5.4.3":{"ativ":"Soprador_Sangati-2566","real":56.0},"1.2.2.5.6":{"ativ":"Fabricação Tubulação e Dutos","real":99.0},"1.2.2.5.7":{"ativ":"Montagem do Chute do Moinho-MOI-2568","real":9.0},"1.2.2.6.3.1":{"ativ":"Redler_RDL-2538 - Elev. + 0 até 13.000","real":67.0},"2.2.4":{"ativ":"Montagem do Guarda Corpo - Escada de Acesso 2°","real":92.0},"2.2.5":{"ativ":"Montagem do Guarda Corpo - Escada de Acesso 3°","real":93.0},"1.2.2.6.3.12":{"ativ":"Elevador de Caneca - El-2505 - Elev. 0 até 18.000","real":73.0},"1.2.2.6.3.13":{"ativ":"Elevador de Caneca - El-2515 - Elev. 0 até 18.000","real":77.0},"1.2.2.6.3.14":{"ativ":"Elevador de Caneca - El-2532 - Elev. 0 até 18.000","real":82.0},"1.2.2.6.3.15":{"ativ":"Hidraulic_Pump_Station - Elev. 6.000","real":94.0},"1.2.2.6.3.16":{"ativ":"Filtro de Manga-MOI-2568 - Elev. 3.600","real":35.0},"1.2.2.6.3.17":{"ativ":"Houper / Rosca do Moi-2568 - Elev. 3.600","real":71.0},"1.2.2.6.3.18":{"ativ":"Redler_RDL-2528 A - Elev. + 3.600","real":100.0},"1.2.2.6.3.19":{"ativ":"Filtro de Manga FM-2569 - Elev. +18.000","real":96.0},"1.2.2.6.3.20":{"ativ":"Rosca ROS-2581 A - Elev. +13.000","real":100.0},"1.2.2.6.3.21":{"ativ":"Silo SIL-2510 - Elev. +8.000","real":31.0},"1.2.3.2.2.24":{"ativ":"Montagem dos Dutos - Preparo Novo","real":88.0},"1.2.3.2.2.32":{"ativ":"Montagem de Tubulações e Suportes","real":97.0},"1.2.2.6.3.22":{"ativ":"Separador Magnético SMG-2511","real":92.0},"1.2.2.6.3.23":{"ativ":"Ventilador_VEN-2572 A Elev + 13.000","real":100.0},"1.2.2.6.3.24":{"ativ":"Ventilador_VEN-2578 A Elev. + 18.000","real":100.0},"1.2.2.6.3.25":{"ativ":"Ventilador_VEN-2578 B Elev. + 18.000","real":100.0},"1.2.2.6.3.26":{"ativ":"Ventilador_VEN-2578 C Elev. + 18.000","real":100.0},"1.2.2.6.3.27":{"ativ":"Ventilador_VEN-2584 B Elev. + 18.000","real":100.0},"1.2.2.6.3.28":{"ativ":"Ventilador VEM / Ciclone - 2536 Relocado","real":38.0},"1.2.2.6.3.7":{"ativ":"Balança_BAL-2510 - Elev. 13.000","real":0.0},"1.2.2.6.4.1.1":{"ativ":"Dutos de captação do filtro de manga","real":99.0},"1.2.2.6.4.1.10":{"ativ":"Duto de Conexão CIC-2578 A x PEN-2575","real":99.0},"1.2.2.6.4.1.11":{"ativ":"Duto de Conexão PEN-2575 x El-2532","real":53.0},"1.2.2.6.4.1.12":{"ativ":"Duto de Conexão CIC-2578 B x SIL-2565","real":24.0},"1.2.2.6.4.1.14":{"ativ":"Duto de Conexão CIC-2578 A x VEM-2578 A","real":94.0},"1.2.2.6.4.1.15":{"ativ":"Duto de Conexão CIC-2578 A x SIL-2565","real":58.0},"1.2.2.6.4.1.16":{"ativ":"Duto de Conexão ROS-2581 x SIL-2565","real":0.0},"1.2.2.6.4.1.18":{"ativ":"Duto de Conexão SIL-2565 x MOI-2568","real":83.0},"1.2.2.6.4.1.19":{"ativ":"Duto de Exaustão - Conexão VEM-2578 C","real":100.0},"1.2.2.6.4.1.2":{"ativ":"Duto de conexão Redler RDL-2538 x Redler RDL-2539","real":57.0},"1.2.2.6.4.1.20":{"ativ":"Duto de Exaustão - Conexão VEM-2578 A","real":100.0},"1.2.2.6.4.1.21":{"ativ":"Duto de Exaustão - Conexão VEM-2584 B","real":76.0},"1.2.2.6.4.1.22":{"ativ":"Duto de Conexão VEM-2584 B ao CIC-2584 B","real":18.0},"1.2.2.6.4.1.26":{"ativ":"Montagem dos suportes dos dutos","real":97.0},"1.2.2.6.4.1.23":{"ativ":"Duto de Conexão Ciclone Existente x RDL-2538","real":0.0},"1.2.2.6.4.1.24":{"ativ":"Duto de Conexão Separador Magnético SMG-2511","real":0.0},"1.2.3.3.7":{"ativ":"Montagem dos chutes EL 2531 para RDL 2528","real":0.0},"1.2.2.6.4.1.27":{"ativ":"Montagem dos Dutos e Chutes - SIL-2510 a SMG-2511","real":0.0},"1.2.2.6.4.1.28":{"ativ":"Montagem dos Dutos e Chutes - CIC-2572 A a PEN-2575","real":0.0},"1.2.2.6.4.1.29":{"ativ":"Montagem do Chute - PEN-2575 a SPC-2577","real":65.0},"1.2.2.6.4.1.3":{"ativ":"Dutos de Conexão RDL-2516 x SIL-2510","real":0.0},"1.2.2.6.4.1.30":{"ativ":"Montagem do Chute - SPC-2577 a El-2532","real":100.0},"1.2.2.6.4.1.31":{"ativ":"Montagem do Chute - RDL-2528 A a EL-2532","real":20.0},"1.2.2.6.4.1.32":{"ativ":"Montagem do Chute - RDL-2528 a RDL-2528 A","real":100.0},"1.2.2.6.4.1.33":{"ativ":"Montagem do Chute EL-2532 para BEAN-HEATER","real":0.0},"1.2.2.6.4.1.34":{"ativ":"Válvula Ciclone CIC-2578 A a Silo SL-2565","real":90.0},"1.2.2.6.4.1.35":{"ativ":"Válvula Ciclone CIC-2584 B para RDL-2541","real":90.0},"1.2.2.6.4.1.36":{"ativ":"Válvula Ciclone CIC-2578 B a Silo SL-2565","real":90.0},"1.2.2.6.4.1.37":{"ativ":"Montagem de Suportes Secundários das Tubulações","real":1.0},"1.2.2.6.4.1.4":{"ativ":"Duto de Conexão EL-2505 x BAL-2510 x SIL-2510","real":0.0},"1.2.2.6.4.1.5":{"ativ":"Duto de Conexão BAL-2510 x SIL-2510","real":0.0},"1.2.3.3.1":{"ativ":"Montagem da corrente do RDL 2516","real":0.0},"1.2.3.3.2":{"ativ":"Montagem da segunda parte do RDL-2541","real":83.0},"1.2.3.3.3":{"ativ":"Montagem do chute de interligação do RDL-2541","real":98.0},"1.2.2.6.4.1.6":{"ativ":"Duto de Conexão SMG-2511 x EL-2515","real":0.0},"1.2.2.6.4.1.8":{"ativ":"Duto que conecta CIC-2572 A x SPC-2526 A","real":94.0},"1.2.3.3.11":{"ativ":"Fechamento do Duto de Aspiração no RDL-2541","real":86.0},"1.2.2.6.4.1.38":{"ativ":"Montagem de Tubulação de Ar comprimido","real":99.0},"1.2.2.6.4.1.39":{"ativ":"Montagem de Tubulação de Vapor de emergência","real":91.0},"1.2.3.3.12":{"ativ":"Desmontagem e Montagem do EL-2531 Realocado","real":42.0},"1.2.3.3.4":{"ativ":"Montagem da Rosca ROS-2530","real":100.0},"1.2.3.3.5":{"ativ":"Dutos 16 SOYC-2500-02-2035","real":0.0}};
 
 var chartDonut  = null;
+var chartStatus = null;
 var chartCurva  = null;
 var chartAvancos = null;
 
@@ -146,9 +156,11 @@ function fmtPct(val) {
   return n + '%';
 }
 
-function fetchGviz(sheetId, sheetParam) {
+function fetchGviz(sheetId, sheetParam, range, noFilter) {
   var param = /^\d+$/.test(sheetParam) ? 'gid='+sheetParam : 'sheet='+encodeURIComponent(sheetParam);
   var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json&'+param;
+  if (range) url += '&range=' + encodeURIComponent(range);
+  if (noFilter) url += '&tq=' + encodeURIComponent('select *'); // ignora filtros ativos
   var done = false;
   return new Promise(function(resolve, reject) {
     setTimeout(function(){ if(!done){done=true;reject(new Error('Timeout'));}}, 12000);
@@ -237,23 +249,29 @@ function parseRelatorio(rows) {
   }
   var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
   var top20=[],allActs=[],edtPos=findPos(rows,'edt',true);
+  var stPos=findPos(rows,'status',false); // coluna STATUS (pode ser nula)
+  var stCol=stPos?stPos[1]:-1;
   if (edtPos) {
     var er=edtPos[0],ec=edtPos[1];
-    var _found=false;
-    for (var j=1;j<=100;j++) {
+    for (var j=1;j<=500;j++) {
       var edt=cv(rows,er+j,ec);
-      if(!edt){if(_found)break;continue;}           // para no 1º vazio após dados
+      if(!edt) continue;                            // pula linhas vazias (células mescladas)
       if(!/^\d/.test(String(edt).trim())) continue; // ignora linhas que não são EDT
-      _found=true;
+      if(allActs.length>=100) break;               // limite de segurança
       var obsC=rows[er+j]&&rows[er+j].c&&rows[er+j].c[ec+8];
       var obsV=obsC&&obsC.v!=null?String(obsC.v):'';
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
       var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
       // allActs: todas as atividades (para gráfico de avanços)
-      allActs.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2))});
+      var _stRaw = stCol>=0 ? String(cv(rows,er+j,stCol)||'').toLowerCase() : '';
+      var _stKey  = _stRaw.indexOf('conclu')>=0?'conc':
+                    _stRaw.indexOf('andament')>=0?'and':
+                    _stRaw.indexOf('atras')>=0?'atrs':
+                    _stRaw.indexOf('iniciar')>=0?'ini':null;
+      allActs.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:cpct(cv(rows,er+j,ec+2)),prev:cpct(cv(rows,er+j,ec+3)),stKey:_stKey});
       // top20: apenas as 20 primeiras (GS já pré-ordenado por desvio desc)
       if(top20.length<20){
-        top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+        top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:cpct(cv(rows,er+j,ec+2)),prev:cpct(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
       }
     }
   }
@@ -378,6 +396,95 @@ function buildConclSection(concl) {
 }
 
 
+
+function parseStatusDist(rows) {
+  // Range fixo B9:D15 → cells[0]=STATUS (col B), cells[1]=QTD (col C), cells[2]=%Total (col D)
+  var sd = {conc:0, and:0, atrs:0, ini:0, total:0};
+  for (var r=0; r<rows.length; r++) {
+    if (!rows[r]||!rows[r].c) continue;
+    var cells = rows[r].c;
+    var c0 = cells[0]; if(!c0) continue;
+    var label = String(c0.v!=null?c0.v:(c0.f||'')).toLowerCase().trim();
+    if (label.length < 3) continue;
+    // QTD está sempre em cells[1] (coluna C)
+    var c1 = cells[1];
+    var qty = c1 ? parseFloat(String(c1.v!=null?c1.v:0)) : 0;
+    if (isNaN(qty)) qty = 0;
+    if      (label.indexOf('em andamento')>=0) sd.and   = qty;
+    else if (label.indexOf('a iniciar')   >=0) sd.ini   = qty;
+    else if (label.indexOf('conclu')      >=0) sd.conc  = qty;
+    else if (label.indexOf('atras')       >=0) sd.atrs  = qty;
+    else if (label.indexOf('total')       >=0 && qty>0) sd.total = qty;
+  }
+  return sd;
+}
+
+function renderStatusChart(sd, allActs) {
+  var el = document.getElementById('statusChart');
+  if (!el) return;
+  if (chartStatus) chartStatus.destroy();
+  // Fallback: calcula via allActs se a aba não carregou
+  if (!sd || (!sd.conc && !sd.and && !sd.atrs && !sd.ini)) {
+    if (!allActs || !allActs.length) return;
+    sd = {conc:0, and:0, atrs:0, ini:0, total:0};
+    var hasStKey = allActs.some(function(a){return a.stKey;});
+    allActs.forEach(function(a) {
+      if (hasStKey) {
+        // Usa coluna STATUS do GS se disponível
+        if      (a.stKey==='conc') sd.conc++;
+        else if (a.stKey==='and')  sd.and++;
+        else if (a.stKey==='atrs') sd.atrs++;
+        else if (a.stKey==='ini')  sd.ini++;
+      } else {
+        // Deriva de real/prev como fallback
+        if      (a.real >= 99.9)              sd.conc++;
+        else if (a.real===0 && a.prev===0)    sd.ini++;
+        else if (a.real >= a.prev)            sd.and++;
+        else                                  sd.atrs++;
+      }
+    });
+    sd.total = allActs.length || (sd.conc+sd.and+sd.atrs+sd.ini);
+    // Se o fallback também deu zeros, usa valores manuais
+    if (!sd.conc && !sd.and && !sd.atrs && !sd.ini) sd = STATUS_MANUAL;
+  }
+  Chart.register(ChartDataLabels);
+  chartStatus = new Chart(el, {
+    type: 'pie',
+    plugins: [ChartDataLabels],
+    data: {
+      labels: [
+        'Concluído ('    + sd.conc + ')',
+        'Em Andamento (' + sd.and  + ')',
+        'Atrasado ('     + sd.atrs + ')',
+        'A Iniciar ('    + sd.ini  + ')'
+      ],
+      datasets: [{
+        data: [sd.conc, sd.and, sd.atrs, sd.ini],
+        backgroundColor: ['#1a6637','#2563eb','#dc2626','#f59e0b'],
+        borderColor: '#fff',
+        borderWidth: 2,
+        hoverOffset: 8,
+        datalabels: { display: false }
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {font: {size: 11}, boxWidth: 13, padding: 10}
+        },
+        tooltip: {
+          callbacks: {
+            label: function(c){ return '  ' + c.label + ': ' + c.raw; }
+          }
+        }
+      }
+    }
+  });
+}
+
 function buildTopAvancos(allActs, atualDate, antDate) {
   // Calcula avanços no período (Atual - Anterior)
   var advances = [];
@@ -498,7 +605,7 @@ function renderAvancosChart(allActs, atualDate, antDate) {
   });
 }
 
-function render(d, curva, concl, ts, atualDate, antDate) {
+function render(d, curva, concl, ts, atualDate, antDate, sd) {
   var ahead=d.dPct>=0;
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
@@ -546,7 +653,7 @@ function render(d, curva, concl, ts, atualDate, antDate) {
     +'<div class="kpi r"><div class="kpi-lbl">Atrasadas</div><div class="kpi-val">'+d.atrs+'</div></div>'
     +'</div>'
 
-    +'<div class="row2">'
+    +'<div class="row3">'
     +'<div class="card"><div class="ct">Avanço físico</div>'
     +'<div class="pb-row"><div class="pb-lbl"><span>Realizado</span><span>'+d.rPct.toFixed(1)+'%</span></div>'
     +'<div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.rPct,100)+'%;background:linear-gradient(90deg,#34d399,#10b981 60%,#059669);box-shadow:0 2px 8px rgba(16,185,129,0.45)"></div></div></div>'
@@ -560,6 +667,9 @@ function render(d, curva, concl, ts, atualDate, antDate) {
     +'<div class="legend">'+d.devs.map(function(v){return '<div class="leg"><div class="leg-dot" style="background:'+v.cor+'"></div>'+v.nm+' — <strong>'+v.qt+'</strong> ('+Math.round(v.qt/d.totDv*100)+'%)</div>';}).join('')+'</div>'
     +'<div style="position:relative;height:190px"><canvas id="donut"></canvas></div>'
     +'<div style="margin-top:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:12px;font-weight:600;color:#991b1b">Total: '+d.totDv+' desvios identificados</div>'
+    +'</div>'
+    +'<div class="card"><div class="ct" style="text-align:center">Distribuição por Status (Qtd.)</div>'
+    +'<div style="position:relative;height:260px"><canvas id="statusChart"></canvas></div>'
     +'</div></div>'
 
     +'<div class="card-full"><div class="ct">Curva S — Avanço Físico Acumulado</div>'
@@ -586,6 +696,7 @@ function render(d, curva, concl, ts, atualDate, antDate) {
     +'</div></div>'
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
 
+  renderStatusChart(sd, d.allActs);
   renderAvancosChart(d.allActs, atualDate, antDate);
   if(chartDonut) chartDonut.destroy();
   chartDonut=new Chart(document.getElementById('donut'),{type:'doughnut',data:{labels:d.devs.map(function(v){return v.nm;}),datasets:[{data:d.devs.map(function(v){return v.qt;}),backgroundColor:d.devs.map(function(v){return v.cor;}),borderWidth:0,hoverOffset:6}]},options:{responsive:true,maintainAspectRatio:false,cutout:'66%',plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw+' desvios';}}}}}});
@@ -619,17 +730,19 @@ function init() {
   if(btn){btn.disabled=true;btn.textContent='↺ Carregando...';}
   var ts=new Date().toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   Promise.all([
-    fetchGviz(SHEET_ID,GID),
+    fetchGviz(SHEET_ID,GID,null,true), // noFilter: ignora filtro ativo da aba
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
-    fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;})
+    fetchGviz(SHEET_ID,SHEET_ANTERIOR).catch(function(e){console.warn('Anterior:',e.message);return null;}),
+    fetchGviz(SHEET_ID_STATUS,GID_STATUS,'A3:B8').catch(function(e){console.warn('Status:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
       var atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var antDate=results[3]?parseControlDate(results[3]):ANTERIOR_DATE;
       if(!antDate) antDate=ANTERIOR_DATE;
-      render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,antDate);
+      var sd=results[4]?parseStatusDist(results[4]):null;
+      render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,antDate,sd);
     }catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
