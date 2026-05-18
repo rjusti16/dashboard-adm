@@ -252,10 +252,10 @@ function parseRelatorio(rows) {
       var obsF=obsC&&obsC.f!=null?String(obsC.f):'';
       var obsText=(obsV.length>=obsF.length?(obsV||obsF):(obsF||obsV)).replace(/[\r\n\t]+/g,' ').trim()||'—';
       // allActs: todas as atividades (para gráfico de avanços)
-      allActs.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3))});
+      allActs.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:cpct(cv(rows,er+j,ec+2)),prev:cpct(cv(rows,er+j,ec+3))});
       // top20: apenas as 20 primeiras (GS já pré-ordenado por desvio desc)
       if(top20.length<20){
-        top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:toNum(cv(rows,er+j,ec+2)),prev:toNum(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
+        top20.push({edt:String(edt),ativ:String(cv(rows,er+j,ec+1)||'—'),real:cpct(cv(rows,er+j,ec+2)),prev:cpct(cv(rows,er+j,ec+3)),dev:toNum(cv(rows,er+j,ec+4)),term:fmtDate(cv(rows,er+j,ec+5)),area:String(cv(rows,er+j,ec+6)||'—'),resp:String(cv(rows,er+j,ec+7)||'—'),obs:obsText});
       }
     }
   }
@@ -382,29 +382,45 @@ function buildConclSection(concl) {
 
 
 function parseStatusDist(rows) {
-  // Varre TODAS as células de cada linha — tabela pode estar em qualquer coluna
+  // Só lê as linhas DENTRO da tabela STATUS DAS ATIVIDADES
+  // para não confundir com textos do Resumo Executivo
   var sd = {conc:0, and:0, atrs:0, ini:0, total:0};
+  var inTable = false, headerRow = -1;
   for (var r=0; r<rows.length; r++) {
     if (!rows[r]||!rows[r].c) continue;
     var cells = rows[r].c;
+    var rowStr = cells.map(function(c){
+      return c?String(c.v!=null?c.v:(c.f||'')):''
+    }).join('|').toLowerCase();
+
+    // Detecta cabeçalho da tabela
+    if (!inTable && (rowStr.indexOf('status das atividades')>=0 ||
+        (rowStr.indexOf('status')>=0 && rowStr.indexOf('qtd')>=0))) {
+      inTable = true; headerRow = r; continue;
+    }
+    if (!inTable) continue;
+    if (r > headerRow + 10) break; // limita busca
+
+    // Varre células da linha procurando rótulo de status
     for (var c=0; c<cells.length; c++) {
       if (!cells[c]) continue;
       var label = String(cells[c].v!=null?cells[c].v:(cells[c].f||'')).toLowerCase().trim();
-      if (!label) continue;
-      // Busca o próximo número adjacente (até 3 células à frente)
+      if (label.length < 3) continue;
+      // Número na célula imediatamente seguinte (coluna QTD)
       var qty = 0;
-      for (var nc=c+1; nc<cells.length && nc<=c+3; nc++) {
-        if (cells[nc] && cells[nc].v != null) {
+      for (var nc=c+1; nc<cells.length && nc<=c+2; nc++) {
+        if (cells[nc] && cells[nc].v!=null) {
           var q = parseFloat(String(cells[nc].v));
-          if (!isNaN(q) && q >= 0) { qty = q; break; }
+          if (!isNaN(q) && q>=0 && q<500) { qty=q; break; }
         }
       }
-      if      (label.indexOf('em andamento') >= 0) sd.and  = qty;
-      else if (label.indexOf('a iniciar')    >= 0) sd.ini  = qty;
-      else if (label.indexOf('conclu')       >= 0) sd.conc = qty;
-      else if (label.indexOf('atras')        >= 0) sd.atrs = qty;
-      else if (label.indexOf('total')        >= 0 && qty > 0) sd.total = qty;
+      if      (label.indexOf('em andamento')>=0) { sd.and  = qty; break; }
+      else if (label.indexOf('a iniciar')   >=0) { sd.ini  = qty; break; }
+      else if (label.indexOf('conclu')      >=0) { sd.conc = qty; break; }
+      else if (label.indexOf('atras')       >=0) { sd.atrs = qty; break; }
+      else if (label.indexOf('total')       >=0 && qty>0) { sd.total=qty; break; }
     }
+    if (rowStr.indexOf('total geral')>=0) break;
   }
   return sd;
 }
@@ -418,7 +434,7 @@ function renderStatusChart(sd, allActs) {
     if (!allActs || !allActs.length) return;
     sd = {conc:0, and:0, atrs:0, ini:0, total:0};
     allActs.forEach(function(a) {
-      if      (a.real >= 100)                    sd.conc++;
+      if      (a.real >= 99.9)                   sd.conc++;
       else if (a.real === 0 && a.prev === 0)     sd.ini++;
       else if (a.real >= a.prev)                 sd.and++;
       else                                       sd.atrs++;
