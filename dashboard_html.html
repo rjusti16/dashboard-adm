@@ -406,12 +406,12 @@ function parseStatusDist(rows) {
       if (!cells[c]) continue;
       var label = String(cells[c].v!=null?cells[c].v:(cells[c].f||'')).toLowerCase().trim();
       if (label.length < 3) continue;
-      // Número na célula imediatamente seguinte (coluna QTD)
+      // Número na coluna QTD — pula decimais 0-1 (são os % do total)
       var qty = 0;
-      for (var nc=c+1; nc<cells.length && nc<=c+2; nc++) {
+      for (var nc=c+1; nc<cells.length && nc<=c+3; nc++) {
         if (cells[nc] && cells[nc].v!=null) {
           var q = parseFloat(String(cells[nc].v));
-          if (!isNaN(q) && q>=0 && q<500) { qty=q; break; }
+          if (!isNaN(q) && q > 1 && q < 500) { qty=q; break; } // >1 garante inteiro, não %
         }
       }
       if      (label.indexOf('em andamento')>=0) { sd.and  = qty; break; }
@@ -446,7 +446,12 @@ function renderStatusChart(sd, allActs) {
     type: 'pie',
     plugins: [ChartDataLabels],
     data: {
-      labels: ['Concluído','Em Andamento','Atrasado','A Iniciar'],
+      labels: [
+        'Concluído ('    + sd.conc + ')',
+        'Em Andamento (' + sd.and  + ')',
+        'Atrasado ('     + sd.atrs + ')',
+        'A Iniciar ('    + sd.ini  + ')'
+      ],
       datasets: [{
         data: [sd.conc, sd.and, sd.atrs, sd.ini],
         backgroundColor: ['#1a6637','#2563eb','#dc2626','#f59e0b'],
