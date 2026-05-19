@@ -423,15 +423,37 @@ function renderEfetivo(ef){
   var el=document.getElementById('efChart'); if(!el) return;
   if(chartEfetivo) chartEfetivo.destroy();
   var d=ef||EF_FALLBACK;
+
+  // Rótulos simples (sem data duplicada) — data centralizada por plugin
   var labels=[],indData=[],dirData=[];
   d.dates.forEach(function(dt,i){
-    labels.push(['DIA',dt],['NOITE',dt]);
-    indData.push(d.ind.dia[i]||0, d.ind.noite[i]||0);
-    dirData.push(d.dir.dia[i]||0, d.dir.noite[i]||0);
+    labels.push('DIA','NOITE');
+    indData.push(d.ind.dia[i]||0,d.ind.noite[i]||0);
+    dirData.push(d.dir.dia[i]||0,d.dir.noite[i]||0);
   });
+
+  var capturedDates=d.dates.slice(); // captura para closure
+
+  // Plugin: desenha a data UMA VEZ centralizada abaixo de cada par DIA/NOITE
+  var datePlugin={
+    id:'efDates',
+    afterDraw:function(chart){
+      var ctx=chart.ctx, xs=chart.scales.x, yB=chart.chartArea.bottom;
+      ctx.save();
+      ctx.font='10px "Segoe UI",sans-serif';
+      ctx.fillStyle='#6b7280';
+      ctx.textAlign='center';
+      capturedDates.forEach(function(dt,i){
+        var x=(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2;
+        ctx.fillText(dt,x,yB+30);
+      });
+      ctx.restore();
+    }
+  };
+
   Chart.register(ChartDataLabels);
   chartEfetivo=new Chart(el,{
-    type:'bar', plugins:[ChartDataLabels],
+    type:'bar',plugins:[ChartDataLabels,datePlugin],
     data:{labels:labels,datasets:[
       {label:'Indireta',data:indData,backgroundColor:'#c0392b',
        datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}
@@ -441,27 +463,43 @@ function renderEfetivo(ef){
       }}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
+      layout:{padding:{bottom:22}},
       scales:{
-        x:{stacked:true,ticks:{font:{size:10},maxRotation:0,autoSkip:false},grid:{display:false}},
-        y:{stacked:true,beginAtZero:true,max:90,ticks:{font:{size:10},stepSize:10},grid:{color:'rgba(0,0,0,.05)'}}
+        x:{stacked:true,
+           ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},
+           grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,max:90,
+           ticks:{font:{size:10},color:'#9ca3af',stepSize:10},
+           grid:{color:'rgba(0,0,0,.05)'}}
       },
       plugins:{legend:{display:false},datalabels:{},
-        tooltip:{callbacks:{title:function(cs){return cs[0].label[0]+' \u2014 '+cs[0].label[1]+'/2026';},label:function(c){return '  '+c.dataset.label+': '+c.raw;}}}
+        tooltip:{callbacks:{
+          // FIX: usa dataIndex, não cs[0].label[0] (que daria 1 char)
+          title:function(cs){
+            var idx=cs[0].dataIndex;
+            var turno=idx%2===0?'DIA':'NOITE';
+            var dt=capturedDates[Math.floor(idx/2)]||'';
+            return turno+' \u2014 '+dt+'/2026';
+          },
+          label:function(c){return '  '+c.dataset.label+': '+c.raw;}
+        }}
       }
     }
   });
-  // Totals
+
+  // Totais no header — estilo harmonizado com o dashboard
   var tot=document.getElementById('efTotals'); if(!tot) return;
   tot.innerHTML=d.dates.map(function(dt,i){
     var tD=(d.ind.dia[i]||0)+(d.dir.dia[i]||0);
     var tN=(d.ind.noite[i]||0)+(d.dir.noite[i]||0);
-    return '<div style="background:rgba(255,255,255,.12);border-radius:5px;padding:4px 10px;text-align:center;min-width:64px">'
-      +'<div style="font-size:9px;opacity:.7">'+dt+'</div>'
-      +'<div style="font-size:13px;font-weight:600">'+(tD+tN)+'</div>'
-      +'<div style="font-size:9px;opacity:.6">D:'+tD+' N:'+tN+'</div>'
+    return '<div style="text-align:center;padding:2px 10px;border-right:1px solid #e8eaed">'
+      +'<div style="font-size:10px;color:#9ca3af">'+dt+'</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#374151">'+(tD+tN)+'</div>'
+      +'<div style="font-size:9px;color:#9ca3af">D:'+tD+' N:'+tN+'</div>'
       +'</div>';
   }).join('');
 }
+
 
 function parseCurva(rows) {
   var prevRowIdx=-1,realRowIdx=-1,tendRowIdx=-1,dateRowIdx=-1;
@@ -657,15 +695,16 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +'<div class="rs-item"><div class="rs-bar" style="background:#f59e0b;min-height:44px"></div><div><div class="rs-t">Principais causas</div><div class="rs-p">Aguardando adequação de piso/civil (ADM Brasil). Peças e materiais não entregues no site (Elevador 2531, correntes).</div></div></div>'
     +'<div class="rs-item"><div class="rs-bar" style="background:#2563eb;min-height:44px"></div><div><div class="rs-t">Ação requerida</div><div class="rs-p">Priorizar liberação de frentes civis, entrega do Elevador 2531 e materiais pendentes no site.</div></div></div>'
     +'</div></div>'
-    +'<div class="card-full" style="overflow:hidden;padding:0">'
-    +'<div style="background:#1b3a5c;padding:10px 18px;display:flex;align-items:center;justify-content:space-between">'
-    +'<span style="color:#fff;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase">Efetivo Irmãos Passáura</span>'
-    +'<div id="efTotals" style="display:flex;gap:8px;color:#fff"></div>'
-    +'<div style="display:flex;gap:14px;font-size:11px;color:rgba(255,255,255,.85)">'
-    +'<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#c0392b;display:inline-block"></span>Indireta</span>'
-    +'<span style="display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:2px;background:#2e6da4;display:inline-block"></span>Direta</span>'
-    +'</div></div>'
-    +'<div style="padding:14px 14px 10px"><div style="position:relative;height:280px"><canvas id="efChart"></canvas></div></div>'
+    +'<div class="card-full">'
+    +'<div class="ct" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'
+    +'<span>Efetivo Irmãos Passaúra</span>'
+    +'<div style="display:flex;align-items:center;gap:16px">'
+    +'<div id="efTotals" style="display:flex;border:0.5px solid #e8eaed;border-radius:6px;overflow:hidden"></div>'
+    +'<div style="display:flex;gap:12px;font-size:11px;color:#6b7280">'
+    +'<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#c0392b;display:inline-block"></span>Indireta</span>'
+    +'<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#2e6da4;display:inline-block"></span>Direta</span>'
+    +'</div></div></div>'
+    +'<div style="position:relative;height:300px"><canvas id="efChart"></canvas></div>'
     +'</div>'
 
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
