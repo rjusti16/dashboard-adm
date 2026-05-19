@@ -353,207 +353,152 @@ function renderStatusChart(sd){
 }
 
 
-var EF_SHEET='1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
-var EF_GID_T01='1517212466'; // Tabela 01 — base de dados
+var EF_SHEET   = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
+var EF_GID_T01 = '1637506208'; // Tabela 01 — pivot de efetivo
 
-// Meses em português para parsear "7-abr.", "18-mai.", etc.
-var EF_MESES={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
-
-function fmtEfDate(v){
-  if(!v&&v!==0) return null;
-  var s=String(v).toLowerCase().replace(/\./g,'').trim();
-  // Formato "7-abr" ou "18-mai"
-  var m=s.match(/^(\d{1,2})[\-\s]([a-z]{3})/);
-  if(m&&EF_MESES[m[2]]) return ('0'+m[1]).slice(-2)+'/'+('0'+EF_MESES[m[2]]).slice(-2);
-  // Date(yyyy,m,d)
-  m=String(v).match(/Date\((\d+),(\d+),(\d+)/);
-  if(m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
+// Meses em português: "04/mai" → "04/05"
+var EF_MESES = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+function fmtEfDate(v) {
+  if (!v && v !== 0) return null;
+  var s = String(v).toLowerCase().replace(/\./g,'').trim();
+  // Formato "04/mai" ou "04-mai" ou "04 mai"
+  var m = s.match(/^(\d{1,2})[\-\/\s]([a-z]{3})/);
+  if (m && EF_MESES[m[2]]) return ('0'+m[1]).slice(-2)+'/'+('0'+EF_MESES[m[2]]).slice(-2);
+  // Date(yyyy,m,d) do GViz
+  m = String(v).match(/Date\((\d+),(\d+),(\d+)/);
+  if (m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
   // dd/mm/yyyy
-  m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
-  if(m){var a=+m[1],b=+m[2];return b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2);}
+  m = String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
+  if (m) { var a=+m[1],b=+m[2]; return b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2); }
   return null;
 }
 
-function parseTabela01(txt){
+function parseTabela01(txt) {
   var json;
-  try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
-  catch(e){try{var s=txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1);json=JSON.parse(s);}catch(e2){return null;}}
-  if(!json||!json.table) return null;
-  var rows=json.table.rows;
-  if(!rows||!rows.length) return null;
+  try { json = JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,'')); }
+  catch(e) { try { json = JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1)); } catch(e2) { return null; } }
+  if (!json || !json.table) return null;
 
-  // 1. Encontra linha de cabeçalho com datas
-  var hdrRow=null, hdrIdx=-1;
-  for(var r=0;r<Math.min(12,rows.length);r++){
-    if(!rows[r]||!rows[r].c) continue;
-    var cnt=0;
-    rows[r].c.forEach(function(cell){
-      if(!cell) return;
-      if(fmtEfDate(cell.v||cell.f)) cnt++;
-    });
-    if(cnt>=3){hdrRow=rows[r].c; hdrIdx=r; break;}
-  }
-  if(!hdrRow) return null;
+  var cols = json.table.cols || [];
+  var rows = json.table.rows || [];
+  if (!rows.length) return null;
 
-  // 2. Coleta índices de colunas com data
-  var dateCols=[];
-  hdrRow.forEach(function(cell,ci){
-    if(!cell) return;
-    var label=fmtEfDate(cell.v||cell.f);
-    if(label) dateCols.push({ci:ci,label:label});
+  // ── 1. Datas: tenta em cols[], senão varre linhas ────────────────
+  var dateCols = [];
+  cols.forEach(function(col, ci) {
+    var label = fmtEfDate(col.label || col.id);
+    if (label) dateCols.push({ci:ci, label:label});
   });
-  if(!dateCols.length) return null;
 
-  // 3. Encontra linhas totais (DIRETA Total / INDIRETA Total)
-  var dirIdx=-1, indirIdx=-1;
-  rows.forEach(function(row,ri){
-    if(!row||!row.c) return;
-    for(var c=0;c<Math.min(3,row.c.length);c++){
-      var cell=row.c[c]; if(!cell) continue;
-      var v=String(cell.v||cell.f||'').toLowerCase().trim();
-      if(v.indexOf('direta')>=0&&v.indexOf('total')>=0&&dirIdx<0) dirIdx=ri;
-      if(v.indexOf('indireta')>=0&&v.indexOf('total')>=0&&indirIdx<0) indirIdx=ri;
+  var dataStartRow = 0;
+  if (!dateCols.length) {
+    for (var r = 0; r < Math.min(20, rows.length); r++) {
+      if (!rows[r] || !rows[r].c) continue;
+      var cnt = 0;
+      rows[r].c.forEach(function(cell) { if (cell && fmtEfDate(cell.v||cell.f)) cnt++; });
+      if (cnt >= 3) {
+        rows[r].c.forEach(function(cell, ci) {
+          if (!cell) return;
+          var label = fmtEfDate(cell.v||cell.f);
+          if (label) dateCols.push({ci:ci, label:label});
+        });
+        dataStartRow = r + 1;
+        break;
+      }
+    }
+  }
+  if (!dateCols.length) return null;
+
+  // ── 2. Linhas DIRETA e INDIRETA (sem exigir "Total") ────────────
+  var dirIdx = -1, indirIdx = -1;
+  rows.forEach(function(row, ri) {
+    if (ri < dataStartRow || !row || !row.c) return;
+    for (var c = 0; c < Math.min(4, row.c.length); c++) {
+      var cell = row.c[c]; if (!cell) continue;
+      var v = String(cell.v||cell.f||'').trim().toUpperCase();
+      if (v === 'DIRETA'   && dirIdx   < 0) { dirIdx   = ri; break; }
+      if (v === 'INDIRETA' && indirIdx < 0) { indirIdx = ri; break; }
     }
   });
-  if(dirIdx<0) return null;
+  if (dirIdx < 0) return null;
 
-  var dirRow=rows[dirIdx].c;
-  var indirRow=indirIdx>=0?rows[indirIdx].c:null;
+  var dirRow   = rows[dirIdx].c;
+  var indirRow = indirIdx >= 0 ? rows[indirIdx].c : null;
 
-  // 4. Detecta e remove colunas de subtotal semanal
-  //    (valores muito maiores que a mediana das demais)
-  var vals=dateCols.map(function(dc){
-    return dc.ci<dirRow.length&&dirRow[dc.ci]?+(dirRow[dc.ci].v||0):0;
-  }).filter(function(v){return v>0;});
+  // ── 3. Remove subtotais semanais (valores >> mediana diária) ─────
+  var vals = dateCols.map(function(dc) {
+    return dc.ci < dirRow.length && dirRow[dc.ci] ? +(dirRow[dc.ci].v||0) : 0;
+  }).filter(function(v){ return v > 0; });
   vals.sort(function(a,b){return a-b;});
-  var med=vals[Math.floor(vals.length/2)]||1;
+  var med = vals[Math.floor(vals.length/2)] || 1;
 
-  var realCols=dateCols.filter(function(dc){
-    var v=dc.ci<dirRow.length&&dirRow[dc.ci]?+(dirRow[dc.ci].v||0):0;
-    return v>0&&v<=med*2.5; // subtotais semanais são 4-5x maiores
+  var realCols = dateCols.filter(function(dc) {
+    var v = dc.ci < dirRow.length && dirRow[dc.ci] ? +(dirRow[dc.ci].v||0) : 0;
+    return v > 0 && v <= med * 2.5; // subtotais semanais são 5-6× maiores
   });
 
-  // 5. Últimas 14 colunas reais (≈ 2 semanas)
-  var last2w=realCols.slice(-14);
+  // ── 4. Últimas 14 datas reais (≈ 2 semanas) ─────────────────────
+  var last2w = realCols.slice(-14);
 
-  // 6. Detecta pares DIA/NOITE (mesma data em colunas consecutivas)
-  var dates=[],indDia=[],indNt=[],dirDia=[],dirNt=[];
-  var hasPairs=false;
-  for(var p=0;p<last2w.length-1;p++){
-    if(last2w[p].label===last2w[p+1].label){hasPairs=true;break;}
-  }
-
-  var i=0;
-  while(i<last2w.length){
-    var c1=last2w[i];
-    var c2=(hasPairs&&i+1<last2w.length&&last2w[i+1].label===c1.label)?last2w[i+1]:null;
-    dates.push(c1.label);
-    var dv1=dirRow[c1.ci]?+(dirRow[c1.ci].v||0):0;
-    var iv1=indirRow&&indirRow[c1.ci]?+(indirRow[c1.ci].v||0):0;
-    if(c2){
-      var dv2=dirRow[c2.ci]?+(dirRow[c2.ci].v||0):0;
-      var iv2=indirRow&&indirRow[c2.ci]?+(indirRow[c2.ci].v||0):0;
-      dirDia.push(dv1); dirNt.push(dv2);
-      indDia.push(iv1); indNt.push(iv2);
-      i+=2;
-    } else {
-      dirDia.push(dv1); dirNt.push(0);
-      indDia.push(iv1); indNt.push(0);
-      i++;
-    }
-  }
-  if(!dates.length) return null;
-  return {dates:dates,hasPairs:hasPairs,ind:{dia:indDia,noite:indNt},dir:{dia:dirDia,noite:dirNt}};
+  var dates=[], dirDia=[], indDia=[];
+  last2w.forEach(function(dc) {
+    dates.push(dc.label);
+    dirDia.push(dirRow[dc.ci] ? +(dirRow[dc.ci].v||0) : 0);
+    indDia.push(indirRow && indirRow[dc.ci] ? +(indirRow[dc.ci].v||0) : 0);
+  });
+  if (!dates.length) return null;
+  return { dates:dates, hasPairs:false, ind:{dia:indDia,noite:[]}, dir:{dia:dirDia,noite:[]} };
 }
 
-function renderEfetivo(ef){
-  var el=document.getElementById('efChart'); if(!el) return;
-  if(chartEfetivo) chartEfetivo.destroy();
-  var d=ef;
-  if(!d||!d.dates||!d.dates.length) return; // sem dados = sem gráfico
+function renderEfetivo(ef) {
+  var el = document.getElementById('efChart'); if (!el) return;
+  if (chartEfetivo) chartEfetivo.destroy();
+  if (!ef || !ef.dates || !ef.dates.length) return;
 
-  var labels=[],indData=[],dirData=[];
-  var hasPairs=d.hasPairs;
-
-  d.dates.forEach(function(dt,i){
-    if(hasPairs){
-      labels.push('DIA','NOITE');
-      indData.push(d.ind.dia[i]||0,d.ind.noite[i]||0);
-      dirData.push(d.dir.dia[i]||0,d.dir.noite[i]||0);
-    } else {
-      labels.push(dt);
-      indData.push(d.ind.dia[i]||0);
-      dirData.push(d.dir.dia[i]||0);
-    }
+  var labels=[], indData=[], dirData=[];
+  ef.dates.forEach(function(dt, i) {
+    labels.push(dt);
+    indData.push(ef.ind.dia[i]||0);
+    dirData.push(ef.dir.dia[i]||0);
   });
 
-  var capturedDates=d.dates.slice();
-  var capturedHasPairs=hasPairs;
-
-  // Plugin: data centralizada abaixo do par DIA/NOITE (só se hasPairs)
-  var datePlugin={
-    id:'efDates',
-    afterDraw:function(chart){
-      if(!capturedHasPairs) return;
-      var ctx=chart.ctx,xs=chart.scales.x,yB=chart.chartArea.bottom;
-      ctx.save();
-      ctx.font='10px "Segoe UI",sans-serif';
-      ctx.fillStyle='#6b7280';
-      ctx.textAlign='center';
-      capturedDates.forEach(function(dt,i){
-        var x=(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2;
-        ctx.fillText(dt,x,yB+30);
-      });
-      ctx.restore();
-    }
-  };
-
-  var xMax=Math.max.apply(null,dirData.map(function(v,i){return v+(indData[i]||0);}));
-  xMax=Math.ceil(xMax/10)*10+10;
+  var xMax = 0;
+  labels.forEach(function(_,i){ xMax = Math.max(xMax, (dirData[i]||0)+(indData[i]||0)); });
+  xMax = Math.ceil(xMax/10)*10 + 10;
 
   Chart.register(ChartDataLabels);
-  chartEfetivo=new Chart(el,{
-    type:'bar',plugins:[ChartDataLabels,datePlugin],
-    data:{labels:labels,datasets:[
-      {label:'Indireta',data:indData,backgroundColor:'#c0392b',
-       datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}
-      }},
-      {label:'Direta',data:dirData,backgroundColor:'#2e6da4',
-       datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:11,weight:'bold'},formatter:function(v){return v>0?v:'';}
-      }}
+  chartEfetivo = new Chart(el, {
+    type: 'bar', plugins: [ChartDataLabels],
+    data: { labels:labels, datasets:[
+      { label:'Indireta', data:indData, backgroundColor:'#c0392b',
+        datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}} },
+      { label:'Direta', data:dirData, backgroundColor:'#2e6da4',
+        datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:11,weight:'bold'},formatter:function(v){return v>0?v:'';}} }
     ]},
-    options:{responsive:true,maintainAspectRatio:false,
-      layout:{padding:{bottom:capturedHasPairs?22:4}},
+    options:{
+      responsive:true, maintainAspectRatio:false,
       scales:{
-        x:{stacked:true,ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},grid:{display:false}},
-        y:{stacked:true,beginAtZero:true,max:xMax,ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/9)},grid:{color:'rgba(0,0,0,.05)'}}
+        x:{ stacked:true, ticks:{font:{size:10},color:'#6b7280',maxRotation:45,autoSkip:false}, grid:{display:false} },
+        y:{ stacked:true, beginAtZero:true, max:xMax,
+            ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/8)},
+            grid:{color:'rgba(0,0,0,.05)'} }
       },
-      plugins:{legend:{display:false},datalabels:{},
-        tooltip:{callbacks:{
-          title:function(cs){
-            var idx=cs[0].dataIndex;
-            if(capturedHasPairs){
-              var turno=idx%2===0?'DIA':'NOITE';
-              return turno+' \u2014 '+capturedDates[Math.floor(idx/2)]+'/2026';
-            }
-            return capturedDates[idx]||'';
-          },
-          label:function(c){return '  '+c.dataset.label+': '+c.raw;}
+      plugins:{ legend:{display:false}, datalabels:{},
+        tooltip:{ callbacks:{
+          title:function(cs){ return cs[0].label+'/2026'; },
+          label:function(c){ return '  '+c.dataset.label+': '+c.raw; }
         }}
       }
     }
   });
 
-  // Totais no header
-  var tot=document.getElementById('efTotals'); if(!tot) return;
-  tot.innerHTML=d.dates.map(function(dt,i){
-    var tD=(d.ind.dia[i]||0)+(d.dir.dia[i]||0);
-    var tN=(d.ind.noite[i]||0)+(d.dir.noite[i]||0);
-    var total=hasPairs?tD+tN:tD;
+  // Totais no cabeçalho
+  var tot = document.getElementById('efTotals'); if (!tot) return;
+  tot.innerHTML = ef.dates.map(function(dt,i) {
+    var total = (ef.dir.dia[i]||0)+(ef.ind.dia[i]||0);
     return '<div style="text-align:center;padding:2px 10px;border-right:1px solid #e8eaed">'
       +'<div style="font-size:10px;color:#9ca3af">'+dt+'</div>'
-      +'<div style="font-size:14px;font-weight:600;color:#374151">'+total+'</div>'
-      +(hasPairs?'<div style="font-size:9px;color:#9ca3af">D:'+tD+' N:'+tN+'</div>':'')
+      +'<div style="font-size:13px;font-weight:600;color:#374151">'+total+'</div>'
       +'</div>';
   }).join('');
 }
