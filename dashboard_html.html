@@ -234,9 +234,10 @@ function parseStatusDist(rows){var sd={conc:0,and:0,atrs:0,ini:0,total:0};for(va
 function renderStatusChart(sd){var el=document.getElementById('statusChart');if(!el)return;if(chartStatus)chartStatus.destroy();if(!sd||(!sd.conc&&!sd.and&&!sd.atrs&&!sd.ini))sd=STATUS_MANUAL;Chart.register(ChartDataLabels);chartStatus=new Chart(el,{type:'pie',plugins:[ChartDataLabels],data:{labels:['Conclu\u00eddo ('+sd.conc+')','Em Andamento ('+sd.and+')','Atrasado ('+sd.atrs+')','A Iniciar ('+sd.ini+')'],datasets:[{data:[sd.conc,sd.and,sd.atrs,sd.ini],backgroundColor:['#1a6637','#2563eb','#dc2626','#f59e0b'],borderColor:'#fff',borderWidth:2,hoverOffset:8,datalabels:{display:false}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:13,padding:10}},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw;}}}}}});}
 
 // ── EFETIVO ─────────────────────────────────────────────────────────────────
-var EF_SHEET = '1A_ALf2ewxF-2sIVV6_5jUGc-LuArS48AUBWybqPIky8'; // Google Sheets nativo
-var EF_GID   = '836892721'; // Tabela 01 — GID atual (20/mai/2026)
-var EF_TAB   = 'Tabela 01';
+var EF_SHEET  = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ'; // XLSX compartilhado
+var EF_SHEET2 = '1A_ALf2ewxF-2sIVV6_5jUGc-LuArS48AUBWybqPIky8'; // Google Sheets backup
+var EF_GID    = '836892721';
+var EF_TAB    = 'Tabela 01';
 // Fallback com dados reais da planilha (20/mai/2026)
 var EF_FALLBACK = {
   dates:['09/mai','11/mai','12/mai','13/mai','14/mai','15/mai','16/mai','18/mai','19/mai','20/mai'],
@@ -708,25 +709,28 @@ function init() {
       if(!atualDate)atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var sd=results[3]?parseStatusDist(results[3]):null;
       render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,sd);
-      // Efetivo: 3 URLs tentadas em cascata, fallback estático
+      // Efetivo: 4 URLs em cascata (XLSX + GSheets backup)
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efUrls=[
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11'
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11'
       ];
       (function tryEf(idx){
         if(idx>=_efUrls.length){
-          if(_efStatus) _efStatus.textContent='Dados de referência (planilha indisponível)';
+          if(_efStatus) _efStatus.style.color='#f59e0b';
+          if(_efStatus) _efStatus.textContent='Usando dados de referência — planilha acessível via GViz?';
           renderEfetivo(EF_FALLBACK); return;
         }
         fetch(_efUrls[idx]).then(function(r){return r.text();})
           .then(function(t){
             var d=parseEfetivo(t);
             if(d&&d.dates&&d.dates.length>0){
-              if(_efStatus) _efStatus.textContent='';
+              if(_efStatus){_efStatus.textContent='';_efStatus.style.color='';}
               renderEfetivo(d);
-            } else { tryEf(idx+1); }
+            } else { console.warn('Efetivo URL '+idx+': sem dados'); tryEf(idx+1); }
           }).catch(function(){tryEf(idx+1);});
       })(0);
     }catch(err){console.error(err);showError(err.message);}
