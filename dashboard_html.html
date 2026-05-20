@@ -233,67 +233,185 @@ function parseStatusDist(rows){var sd={conc:0,and:0,atrs:0,ini:0,total:0};for(va
 function renderStatusChart(sd){var el=document.getElementById('statusChart');if(!el)return;if(chartStatus)chartStatus.destroy();if(!sd||(!sd.conc&&!sd.and&&!sd.atrs&&!sd.ini))sd=STATUS_MANUAL;Chart.register(ChartDataLabels);chartStatus=new Chart(el,{type:'pie',plugins:[ChartDataLabels],data:{labels:['Conclu\u00eddo ('+sd.conc+')','Em Andamento ('+sd.and+')','Atrasado ('+sd.atrs+')','A Iniciar ('+sd.ini+')'],datasets:[{data:[sd.conc,sd.and,sd.atrs,sd.ini],backgroundColor:['#1a6637','#2563eb','#dc2626','#f59e0b'],borderColor:'#fff',borderWidth:2,hoverOffset:8,datalabels:{display:false}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:13,padding:10}},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw;}}}}}});}
 
 // ── EFETIVO ─────────────────────────────────────────────────────────────────
-var EF_SHEET='1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
-var EF_GID_T01='528082150';  // Tabela 01 — totais diários (GID atual)
-var EF_MESES={jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
-function fmtEfDate(v){if(!v&&v!==0)return null;var s=String(v).toLowerCase().replace(/\./g,'').trim();var m=s.match(/^(\d{1,2})[\-\/\s]([a-z]{3})/);if(m&&EF_MESES[m[2]])return ('0'+m[1]).slice(-2)+'/'+('0'+EF_MESES[m[2]]).slice(-2);m=String(v).match(/Date\((\d+),(\d+),(\d+)/);if(m)return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);if(m){var a=+m[1],b=+m[2];return b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2);}return null;}
+var EF_SHEET   = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
+var EF_TAB     = 'Tabela 01'; // nome da aba (mais estável que GID)
 
-function parseTabela02(txt){
-  var json;try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return null;}}
-  if(!json||!json.table)return null;
-  var rows=json.table.rows;if(!rows||!rows.length)return null;
-  var hdrRow=null,dataStart=0;
-  for(var r=0;r<Math.min(20,rows.length);r++){if(!rows[r]||!rows[r].c)continue;var cnt=0;rows[r].c.forEach(function(c){if(c&&fmtEfDate(c.v||c.f))cnt++;});if(cnt>=3){hdrRow=rows[r].c;dataStart=r+1;break;}}
-  if(!hdrRow)return null;
-  var dateCols=[];hdrRow.forEach(function(cell,ci){if(!cell)return;var label=fmtEfDate(cell.v||cell.f);if(label)dateCols.push({ci:ci,label:label});});
-  if(!dateCols.length)return null;
-  var indirIdx=-1,dirIdx=-1;
-  rows.forEach(function(row,ri){if(ri<dataStart||!row||!row.c)return;for(var c=0;c<Math.min(4,row.c.length);c++){var cell=row.c[c];if(!cell)continue;var v=String(cell.v||cell.f||'').trim().toUpperCase();if(v==='INDIRETA'&&indirIdx<0){indirIdx=ri;break;}if(v==='DIRETA'&&dirIdx<0){dirIdx=ri;break;}}});
-  if(dirIdx<0)return null;
-  var dirRow=rows[dirIdx].c,indirRow=indirIdx>=0?rows[indirIdx].c:null;
-  var vals=dateCols.map(function(dc){return dc.ci<dirRow.length&&dirRow[dc.ci]?+(dirRow[dc.ci].v||0):0;}).filter(function(v){return v>0;});
-  vals.sort(function(a,b){return a-b;});var med=vals[Math.floor(vals.length/2)]||1;
-  var realCols=dateCols.filter(function(dc){var v=dc.ci<dirRow.length&&dirRow[dc.ci]?+(dirRow[dc.ci].v||0):0;return v>0&&v<=med*2.5;});
-  var hasPairs=false;for(var p=0;p<realCols.length-1;p++){if(realCols[p].label===realCols[p+1].label){hasPairs=true;break;}}
-  var last2w=hasPairs?realCols.slice(-20):realCols.slice(-14);
-  var dates=[],indDia=[],indNt=[],dirDia=[],dirNt=[];
-  var i=0;while(i<last2w.length){var c1=last2w[i];var c2=(hasPairs&&i+1<last2w.length&&last2w[i+1].label===c1.label)?last2w[i+1]:null;dates.push(c1.label);var dv1=dirRow[c1.ci]?+(dirRow[c1.ci].v||0):0;var iv1=indirRow&&indirRow[c1.ci]?+(indirRow[c1.ci].v||0):0;if(c2){dirDia.push(dv1);dirNt.push(dirRow[c2.ci]?+(dirRow[c2.ci].v||0):0);indDia.push(iv1);indNt.push(indirRow&&indirRow[c2.ci]?+(indirRow[c2.ci].v||0):0);i+=2;}else{dirDia.push(dv1);dirNt.push(0);indDia.push(iv1);indNt.push(0);i++;}}
-  if(!dates.length)return null;
-  return {dates:dates,hasPairs:hasPairs,ind:{dia:indDia,noite:indNt},dir:{dia:dirDia,noite:dirNt}};
+var EF_MESES = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
+function fmtEfDate(v){
+  if(!v&&v!==0) return null;
+  var s=String(v).toLowerCase().replace(/\./g,'').trim();
+  // "27/abr", "04/mai", "7-abr"
+  var m=s.match(/^(\d{1,2})[\-\/\s]([a-z]{3})/);
+  if(m&&EF_MESES[m[2]]) return ('0'+m[1]).slice(-2)+'/'+('0'+EF_MESES[m[2]]).slice(-2);
+  // Date(yyyy,m,d)
+  m=String(v).match(/Date\((\d+),(\d+),(\d+)/);
+  if(m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
+  // dd/mm/yyyy
+  m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
+  if(m){var a=+m[1],b=+m[2]; return b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2);}
+  return null;
+}
+
+// Parser para estrutura:
+//   Col A: TURNO (DIA / NOITE)
+//   Col B: MÃO DE OBRA (DIRETA / INDIRETA)
+//   Cols C+: valores por data
+// Linha de datas (row 16 da planilha) vira cols[] no GViz
+function parseEfetivo(txt){
+  var json;
+  try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
+  catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return null;}}
+  if(!json||!json.table) return null;
+
+  var cols=json.table.cols||[], rows=json.table.rows||[];
+  if(!rows.length) return null;
+
+  // ── 1. Colunas de data (tenta cols[], senão varre rows) ─────────
+  var dateCols=[];
+  cols.forEach(function(col,ci){
+    var label=fmtEfDate(col.label||col.id);
+    if(label) dateCols.push({ci:ci,label:label});
+  });
+  var dataStart=0;
+  if(!dateCols.length){
+    for(var r=0;r<Math.min(25,rows.length);r++){
+      if(!rows[r]||!rows[r].c) continue;
+      var cnt=0; rows[r].c.forEach(function(c){if(c&&fmtEfDate(c.v||c.f))cnt++;});
+      if(cnt>=3){
+        rows[r].c.forEach(function(cell,ci){
+          if(!cell)return;
+          var label=fmtEfDate(cell.v||cell.f);
+          if(label) dateCols.push({ci:ci,label:label});
+        });
+        dataStart=r+1; break;
+      }
+    }
+  }
+  if(!dateCols.length) return null;
+
+  // ── 2. Encontra linhas por TURNO (col 0) e MÃO DE OBRA (col 1) ─
+  var dirDiaIdx=-1,indDiaIdx=-1,dirNtIdx=-1,indNtIdx=-1;
+  var inDia=false,inNoite=false;
+  rows.forEach(function(row,ri){
+    if(ri<dataStart||!row||!row.c) return;
+    var v0=String(row.c[0]?row.c[0].v||row.c[0].f||'':'').trim().toUpperCase();
+    var v1=String(row.c[1]?row.c[1].v||row.c[1].f||'':'').trim().toUpperCase();
+    if(v0==='DIA')  {inDia=true;inNoite=false;return;}
+    if(v0==='NOITE'){inNoite=true;inDia=false;return;}
+    if(v0==='TOTAL GERAL'||v0==='TOTAL') {inDia=inNoite=false;return;}
+    if(inDia)  {if(v1==='DIRETA'  &&dirDiaIdx<0)dirDiaIdx=ri; if(v1==='INDIRETA'&&indDiaIdx<0)indDiaIdx=ri;}
+    if(inNoite){if(v1==='DIRETA'  &&dirNtIdx <0)dirNtIdx =ri; if(v1==='INDIRETA'&&indNtIdx <0)indNtIdx =ri;}
+  });
+
+  // Fallback: estrutura plana (só DIRETA/INDIRETA sem TURNO)
+  if(dirDiaIdx<0){
+    rows.forEach(function(row,ri){
+      if(ri<dataStart||!row||!row.c) return;
+      for(var c=0;c<Math.min(4,row.c.length);c++){
+        var v=String(row.c[c]?row.c[c].v||row.c[c].f||'':'').trim().toUpperCase();
+        if(v==='DIRETA'  &&dirDiaIdx<0){dirDiaIdx=ri;break;}
+        if(v==='INDIRETA'&&indDiaIdx<0){indDiaIdx=ri;break;}
+      }
+    });
+  }
+  if(dirDiaIdx<0) return null;
+
+  var dirDiaRow = rows[dirDiaIdx].c;
+  var indDiaRow = indDiaIdx>=0 ? rows[indDiaIdx].c : null;
+  var dirNtRow  = dirNtIdx >=0 ? rows[dirNtIdx ].c : null;
+  var indNtRow  = indNtIdx >=0 ? rows[indNtIdx ].c : null;
+  var hasPairs  = dirNtRow!==null;
+
+  // ── 3. Filtra subtotais semanais e totais gerais ─────────────────
+  var vals=dateCols.map(function(dc){
+    return dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
+  }).filter(function(v){return v>0;});
+  vals.sort(function(a,b){return a-b;});
+  var med=vals[Math.floor(vals.length/2)]||1;
+
+  var realCols=dateCols.filter(function(dc){
+    var v=dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
+    return v>0&&v<=med*2.5;
+  });
+
+  // ── 4. Últimas 10 datas (≈ 2 semanas) ───────────────────────────
+  var last2w=realCols.slice(-10);
+  var dates=[],iDia=[],iNt=[],dDia=[],dNt=[];
+  last2w.forEach(function(dc){
+    dates.push(dc.label);
+    dDia.push(dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0);
+    iDia.push(indDiaRow&&indDiaRow[dc.ci]?+(indDiaRow[dc.ci].v||0):0);
+    dNt.push(dirNtRow&&dirNtRow[dc.ci]?+(dirNtRow[dc.ci].v||0):0);
+    iNt.push(indNtRow&&indNtRow[dc.ci]?+(indNtRow[dc.ci].v||0):0);
+  });
+  if(!dates.length) return null;
+  return {dates:dates,hasPairs:hasPairs,ind:{dia:iDia,noite:iNt},dir:{dia:dDia,noite:dNt}};
 }
 
 function renderEfetivo(ef){
   var el=document.getElementById('efChart');if(!el)return;
   if(chartEfetivo)chartEfetivo.destroy();
   if(!ef||!ef.dates||!ef.dates.length)return;
+
   var labels=[],indData=[],dirData=[];
   ef.dates.forEach(function(dt,i){
     if(ef.hasPairs){labels.push('DIA','NOITE');indData.push(ef.ind.dia[i]||0,ef.ind.noite[i]||0);dirData.push(ef.dir.dia[i]||0,ef.dir.noite[i]||0);}
     else{labels.push(dt);indData.push(ef.ind.dia[i]||0);dirData.push(ef.dir.dia[i]||0);}
   });
   var capDates=ef.dates.slice(),capInd=indData.slice(),capDir=dirData.slice(),capPairs=ef.hasPairs;
-  // Plugin A: data centralizada abaixo do par
-  var datePlugin={id:'efDates',afterDraw:function(chart){if(!capPairs)return;var ctx=chart.ctx,xs=chart.scales.x,yB=chart.chartArea.bottom;ctx.save();ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.textAlign='center';capDates.forEach(function(dt,i){ctx.fillText(dt,(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2,yB+30);});ctx.restore();}};
-  // Plugin B: total acima do par, centralizado nas barras
-  var totPlugin={id:'efTotalsAbove',afterDatasetsDraw:function(chart){var ctx=chart.ctx,meta1=chart.getDatasetMeta(1);if(!meta1||!meta1.data.length)return;ctx.save();ctx.font='bold 11px "Segoe UI",sans-serif';ctx.textAlign='center';capDates.forEach(function(dt,i){var i0=capPairs?i*2:i,i1=capPairs?i*2+1:-1;var barA=meta1.data[i0];if(!barA)return;var barB=i1>=0?meta1.data[i1]:null;var xC=barB?(barA.x+barB.x)/2:barA.x,yT=barB?Math.min(barA.y,barB.y)-6:barA.y-6;var total=(capInd[i0]||0)+(capDir[i0]||0)+(i1>=0?(capInd[i1]||0)+(capDir[i1]||0):0);ctx.fillStyle='#374151';ctx.fillText(total,xC,yT);});ctx.restore();}};
-  var xMax=0;for(var k=0;k<indData.length;k++)xMax=Math.max(xMax,(indData[k]||0)+(dirData[k]||0));xMax=Math.ceil(xMax/10)*10+10;
+
+  // Plugin A — data centralizada abaixo do par DIA/NOITE
+  var datePlugin={id:'efDates',afterDraw:function(chart){
+    if(!capPairs)return;
+    var ctx=chart.ctx,xs=chart.scales.x,yB=chart.chartArea.bottom;
+    ctx.save();ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.textAlign='center';
+    capDates.forEach(function(dt,i){ctx.fillText(dt,(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2,yB+30);});
+    ctx.restore();
+  }};
+
+  // Plugin B — total acima do par, centralizado nas barras
+  var totPlugin={id:'efTotalsAbove',afterDatasetsDraw:function(chart){
+    var ctx=chart.ctx,meta1=chart.getDatasetMeta(1);if(!meta1||!meta1.data.length)return;
+    ctx.save();ctx.font='bold 11px "Segoe UI",sans-serif';ctx.textAlign='center';
+    capDates.forEach(function(dt,i){
+      var i0=capPairs?i*2:i,i1=capPairs?i*2+1:-1;
+      var barA=meta1.data[i0];if(!barA)return;
+      var barB=i1>=0?meta1.data[i1]:null;
+      var xC=barB?(barA.x+barB.x)/2:barA.x,yT=barB?Math.min(barA.y,barB.y)-6:barA.y-6;
+      var total=(capInd[i0]||0)+(capDir[i0]||0)+(i1>=0?(capInd[i1]||0)+(capDir[i1]||0):0);
+      ctx.fillStyle='#374151';ctx.fillText(total,xC,yT);
+    });
+    ctx.restore();
+  }};
+
+  var xMax=0;for(var k=0;k<indData.length;k++)xMax=Math.max(xMax,(indData[k]||0)+(dirData[k]||0));
+  xMax=Math.ceil(xMax/10)*10+10;
+
   Chart.register(ChartDataLabels);
   chartEfetivo=new Chart(el,{type:'bar',plugins:[ChartDataLabels,datePlugin,totPlugin],
     data:{labels:labels,datasets:[
-      {label:'Indireta',data:indData,backgroundColor:'#c0392b',datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}}},
-      {label:'Direta',data:dirData,backgroundColor:'#2e6da4',datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:11,weight:'bold'},formatter:function(v){return v>0?v:'';}}}
+      {label:'Indireta',data:indData,backgroundColor:'#c0392b',datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}
+      }},
+      {label:'Direta',data:dirData,backgroundColor:'#2e6da4',datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:11,weight:'bold'},formatter:function(v){return v>0?v:'';}
+      }}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
       layout:{padding:{top:22,bottom:capPairs?26:4}},
-      scales:{x:{stacked:true,ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},grid:{display:false}},y:{stacked:true,beginAtZero:true,max:xMax,ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/8)},grid:{color:'rgba(0,0,0,.05)'}}},
-      plugins:{legend:{display:false},datalabels:{},tooltip:{callbacks:{
-        title:function(cs){var idx=cs[0].dataIndex;if(capPairs){var t=idx%2===0?'DIA':'NOITE';return t+' \u2014 '+capDates[Math.floor(idx/2)]+'/2026';}return capDates[idx]+'/2026';},
-        label:function(c){return '  '+c.dataset.label+': '+c.raw;}
-      }}}
+      scales:{
+        x:{stacked:true,ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,max:xMax,ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/8)},grid:{color:'rgba(0,0,0,.05)'}}
+      },
+      plugins:{legend:{display:false},datalabels:{},
+        tooltip:{callbacks:{
+          title:function(cs){var idx=cs[0].dataIndex;if(capPairs){var t=idx%2===0?'DIA':'NOITE';return t+' \u2014 '+capDates[Math.floor(idx/2)]+'/2026';}return capDates[idx]+'/2026';},
+          label:function(c){return '  '+c.dataset.label+': '+c.raw;}
+        }}
+      }
     }
   });
   var tot=document.getElementById('efTotals');if(tot)tot.innerHTML='';
 }
+
 
 function parseCurva(rows) {
   var prevRowIdx=-1,realRowIdx=-1,tendRowIdx=-1,dateRowIdx=-1;
@@ -549,20 +667,11 @@ function init() {
       if(!atualDate)atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var sd=results[3]?parseStatusDist(results[3]):null;
       render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,sd);
-      // Efetivo: tenta Tabela 02 (DIA/NOITE), fallback Tabela 01
-      var _efUrls=[
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet=Tabela%2002',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID_T01
-      ];
-      (function tryNext(idx){
-        if(idx>=_efUrls.length) return;
-        fetch(_efUrls[idx]).then(function(r){return r.text();})
-          .then(function(t){
-            var d=parseTabela02(t);
-            if(d&&d.dates&&d.dates.length){renderEfetivo(d);}
-            else tryNext(idx+1);
-          }).catch(function(){tryNext(idx+1);});
-      })(0);
+      // Efetivo: busca por nome da aba (resistente a mudança de GID)
+      fetch('https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB))
+        .then(function(r){return r.text();})
+        .then(function(t){renderEfetivo(parseEfetivo(t));})
+        .catch(function(e){console.warn('Efetivo:',e.message);});
     }catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
