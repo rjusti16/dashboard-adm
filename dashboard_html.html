@@ -412,14 +412,10 @@ function parseEfetivoRows(rows, cols){
   var hasPairs=dirNtRow!==null;
 
   // ── Remove subtotais ─────────────────────────────────────────────────
-  var vals=dateCols.map(function(dc){
-    return dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
-  }).filter(function(v){return v>0;});
-  vals.sort(function(a,b){return a-b;});
-  var med=vals[Math.floor(vals.length/2)]||1;
+  function rowNum(row,ci){return row&&ci<row.length&&row[ci]?+(row[ci].v||0):0;}
   var realCols=dateCols.filter(function(dc){
-    var v=dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
-    return v>=med*0.4&&v<=med*2.5; // exclui parciais (<40% mediana) e subtotais grandes
+    var total=rowNum(dirDiaRow,dc.ci)+rowNum(indDiaRow,dc.ci)+rowNum(dirNtRow,dc.ci)+rowNum(indNtRow,dc.ci);
+    return total>0&&total<300; // mantém dias parciais e exclui totais mensais/gerais
   });
 
   // ── Detecta pares DIA/NOITE por datas repetidas nas colunas ──────────
@@ -441,11 +437,11 @@ function parseEfetivoRows(rows, cols){
     var c1=last2w[i];
     var c2=(hasPairs&&i+1<last2w.length&&last2w[i+1].label===c1.label)?last2w[i+1]:null;
     dates.push(c1.label);
-    var dv1=dirDiaRow[c1.ci]?+(dirDiaRow[c1.ci].v||0):0;
-    var iv1=indDiaRow&&indDiaRow[c1.ci]?+(indDiaRow[c1.ci].v||0):0;
+    var dv1=rowNum(dirDiaRow,c1.ci);
+    var iv1=rowNum(indDiaRow,c1.ci);
     if(c2){
-      dDia.push(dv1); dNt.push(dirNtRow&&dirNtRow[c2.ci]?+(dirNtRow[c2.ci].v||0):0);
-      iDia.push(iv1); iNt.push(indNtRow&&indNtRow[c2.ci]?+(indNtRow[c2.ci].v||0):0);
+      dDia.push(dv1); dNt.push(rowNum(dirNtRow,c2.ci));
+      iDia.push(iv1); iNt.push(rowNum(indNtRow,c2.ci));
       i+=2;
     } else {
       dDia.push(dv1); dNt.push(0);
