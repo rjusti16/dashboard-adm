@@ -715,14 +715,14 @@ function init() {
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efUrls=[
         // 1-2: URL publicada na web (funciona sem auth)
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&tqx=out:json&range=C4:AC11',
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&tqx=out:json',
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID,
         // 3-4: XLSX original
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=A4:AC11',
         // 5-6: Google Sheets backup
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11'
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=A4:AC11'
       ];
       (function tryEf(idx){
         if(idx>=_efUrls.length){
