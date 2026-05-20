@@ -233,8 +233,16 @@ function parseStatusDist(rows){var sd={conc:0,and:0,atrs:0,ini:0,total:0};for(va
 function renderStatusChart(sd){var el=document.getElementById('statusChart');if(!el)return;if(chartStatus)chartStatus.destroy();if(!sd||(!sd.conc&&!sd.and&&!sd.atrs&&!sd.ini))sd=STATUS_MANUAL;Chart.register(ChartDataLabels);chartStatus=new Chart(el,{type:'pie',plugins:[ChartDataLabels],data:{labels:['Conclu\u00eddo ('+sd.conc+')','Em Andamento ('+sd.and+')','Atrasado ('+sd.atrs+')','A Iniciar ('+sd.ini+')'],datasets:[{data:[sd.conc,sd.and,sd.atrs,sd.ini],backgroundColor:['#1a6637','#2563eb','#dc2626','#f59e0b'],borderColor:'#fff',borderWidth:2,hoverOffset:8,datalabels:{display:false}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:13,padding:10}},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw;}}}}}});}
 
 // ── EFETIVO ─────────────────────────────────────────────────────────────────
-var EF_SHEET   = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
-var EF_TAB     = 'Tabela 01'; // nome da aba (mais estável que GID)
+var EF_SHEET = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
+var EF_GID   = '1654990756'; // Tabela 01 — GID atual
+var EF_TAB   = 'Tabela 01';
+// Fallback com dados da planilha (20/mai/2026)
+var EF_FALLBACK = {
+  dates:['08/mai','09/mai','11/mai','12/mai','13/mai','14/mai','15/mai','16/mai','18/mai','19/mai'],
+  hasPairs:true,
+  ind:{dia:[12,12,12,12,12,12,12,12,12,12],noite:[5,5,5,4,4,4,4,5,5,5]},
+  dir:{dia:[74,74,73,72,67,67,66,68,67,68],noite:[31,31,42,45,42,42,42,44,42,42]}
+};
 
 var EF_MESES = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
 function fmtEfDate(v){
@@ -616,6 +624,7 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +'<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#c0392b;display:inline-block"></span>Indireta</span>'
     +'<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#2e6da4;display:inline-block"></span>Direta</span>'
     +'</div></div></div>'
+    +'<div id="efStatus" style="font-size:11px;color:#9ca3af;padding:0 14px 4px"></div>'
     +'<div style="position:relative;height:300px"><canvas id="efChart"></canvas></div>'
     +'</div>'
 
@@ -667,11 +676,27 @@ function init() {
       if(!atualDate)atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var sd=results[3]?parseStatusDist(results[3]):null;
       render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,sd);
-      // Efetivo: busca por nome da aba (resistente a mudança de GID)
-      fetch('https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB))
-        .then(function(r){return r.text();})
-        .then(function(t){renderEfetivo(parseEfetivo(t));})
-        .catch(function(e){console.warn('Efetivo:',e.message);});
+      // Efetivo: 3 URLs tentadas em cascata, fallback estático
+      var _efStatus=document.getElementById('efStatus');
+      if(_efStatus) _efStatus.textContent='Carregando...';
+      var _efUrls=[
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID,
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)
+      ];
+      (function tryEf(idx){
+        if(idx>=_efUrls.length){
+          if(_efStatus) _efStatus.textContent='Dados de referência (planilha indisponível)';
+          renderEfetivo(EF_FALLBACK); return;
+        }
+        fetch(_efUrls[idx]).then(function(r){return r.text();})
+          .then(function(t){
+            var d=parseEfetivo(t);
+            if(d&&d.dates&&d.dates.length>0){
+              if(_efStatus) _efStatus.textContent='';
+              renderEfetivo(d);
+            } else { tryEf(idx+1); }
+          }).catch(function(){tryEf(idx+1);});
+      })(0);
     }catch(err){console.error(err);showError(err.message);}
   }).catch(function(e){showError(e.message);});
 }
