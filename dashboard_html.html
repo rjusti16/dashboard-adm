@@ -271,11 +271,10 @@ function parseEfetivo(txt){
   try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
   catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return null;}}
   if(!json||!json.table) return null;
-
   var cols=json.table.cols||[], rows=json.table.rows||[];
   if(!rows.length) return null;
 
-  // ── 1. Colunas de data (tenta cols[], senão varre rows) ─────────
+  // ── Datas: de cols[] primeiro, depois varre rows ─────────────────────
   var dateCols=[];
   cols.forEach(function(col,ci){
     var label=fmtEfDate(col.label||col.id);
@@ -283,79 +282,111 @@ function parseEfetivo(txt){
   });
   var dataStart=0;
   if(!dateCols.length){
-    for(var r=0;r<Math.min(25,rows.length);r++){
+    for(var r=0;r<Math.min(20,rows.length);r++){
       if(!rows[r]||!rows[r].c) continue;
       var cnt=0; rows[r].c.forEach(function(c){if(c&&fmtEfDate(c.v||c.f))cnt++;});
       if(cnt>=3){
-        rows[r].c.forEach(function(cell,ci){
-          if(!cell)return;
-          var label=fmtEfDate(cell.v||cell.f);
-          if(label) dateCols.push({ci:ci,label:label});
-        });
+        rows[r].c.forEach(function(cell,ci){if(!cell)return;var l=fmtEfDate(cell.v||cell.f);if(l)dateCols.push({ci:ci,label:l});});
         dataStart=r+1; break;
       }
     }
   }
   if(!dateCols.length) return null;
 
-  // ── 2. Encontra linhas por TURNO (col 0) e MÃO DE OBRA (col 1) ─
+  // ── Detecção de TURNO (DIA/NOITE) e MÃO DE OBRA (DIRETA/INDIRETA)
+  //    Verifica col[0], col[1] e col[2] para máxima flexibilidade ─────────
   var dirDiaIdx=-1,indDiaIdx=-1,dirNtIdx=-1,indNtIdx=-1;
   var inDia=false,inNoite=false;
+  var dirAll=[],indAll=[]; // fallback: coleta todos sem turno
+
   rows.forEach(function(row,ri){
     if(ri<dataStart||!row||!row.c) return;
-    var v0=String(row.c[0]?row.c[0].v||row.c[0].f||'':'').trim().toUpperCase();
-    var v1=String(row.c[1]?row.c[1].v||row.c[1].f||'':'').trim().toUpperCase();
-    if(v0==='DIA')  {inDia=true;inNoite=false;return;}
-    if(v0==='NOITE'){inNoite=true;inDia=false;return;}
-    if(v0==='TOTAL GERAL'||v0==='TOTAL') {inDia=inNoite=false;return;}
-    if(inDia)  {if(v1==='DIRETA'  &&dirDiaIdx<0)dirDiaIdx=ri; if(v1==='INDIRETA'&&indDiaIdx<0)indDiaIdx=ri;}
-    if(inNoite){if(v1==='DIRETA'  &&dirNtIdx <0)dirNtIdx =ri; if(v1==='INDIRETA'&&indNtIdx <0)indNtIdx =ri;}
+    var labels=[];
+    for(var c=0;c<Math.min(4,row.c.length);c++){
+      labels.push(String(row.c[c]?row.c[c].v||row.c[c].f||'':'').trim().toUpperCase());
+    }
+    var hasLabel=function(k){return labels.some(function(l){return l===k||l.indexOf(k)>=0;});};
+
+    if(hasLabel('DIA')  &&!hasLabel('NOITE')&&!hasLabel('TOTAL')){inDia=true;inNoite=false;return;}
+    if(hasLabel('NOITE')&&!hasLabel('TOTAL')){inNoite=true;inDia=false;return;}
+    if(hasLabel('TOTAL')&&labels.some(function(l){return l.indexOf('GERAL')>=0||l.indexOf('TOTAL')>=0;})){inDia=inNoite=false;return;}
+
+    var isDir=hasLabel('DIRETA')&&!hasLabel('INDIRETA');
+    var isInd=hasLabel('INDIRETA');
+
+    if(inDia){
+      if(isDir&&dirDiaIdx<0) dirDiaIdx=ri;
+      if(isInd&&indDiaIdx<0) indDiaIdx=ri;
+    } else if(inNoite){
+      if(isDir&&dirNtIdx<0) dirNtIdx=ri;
+      if(isInd&&indNtIdx<0) indNtIdx=ri;
+    } else {
+      if(isDir) dirAll.push(ri);
+      if(isInd) indAll.push(ri);
+    }
   });
 
-  // Fallback: estrutura plana (só DIRETA/INDIRETA sem TURNO)
-  if(dirDiaIdx<0){
-    rows.forEach(function(row,ri){
-      if(ri<dataStart||!row||!row.c) return;
-      for(var c=0;c<Math.min(4,row.c.length);c++){
-        var v=String(row.c[c]?row.c[c].v||row.c[c].f||'':'').trim().toUpperCase();
-        if(v==='DIRETA'  &&dirDiaIdx<0){dirDiaIdx=ri;break;}
-        if(v==='INDIRETA'&&indDiaIdx<0){indDiaIdx=ri;break;}
-      }
-    });
-  }
+  // Fallback: se não achou com DIA/NOITE, usa ordem natural (1º=DIA, 2º=NOITE)
+  if(dirDiaIdx<0&&dirAll.length>=1) dirDiaIdx=dirAll[0];
+  if(indDiaIdx<0&&indAll.length>=1) indDiaIdx=indAll[0];
+  if(dirNtIdx<0 &&dirAll.length>=2) dirNtIdx =dirAll[1];
+  if(indNtIdx<0 &&indAll.length>=2) indNtIdx =indAll[1];
   if(dirDiaIdx<0) return null;
 
-  var dirDiaRow = rows[dirDiaIdx].c;
-  var indDiaRow = indDiaIdx>=0 ? rows[indDiaIdx].c : null;
-  var dirNtRow  = dirNtIdx >=0 ? rows[dirNtIdx ].c : null;
-  var indNtRow  = indNtIdx >=0 ? rows[indNtIdx ].c : null;
-  var hasPairs  = dirNtRow!==null;
+  var dirDiaRow=rows[dirDiaIdx].c;
+  var indDiaRow=indDiaIdx>=0?rows[indDiaIdx].c:null;
+  var dirNtRow =dirNtIdx >=0?rows[dirNtIdx ].c:null;
+  var indNtRow =indNtIdx >=0?rows[indNtIdx ].c:null;
+  var hasPairs=dirNtRow!==null;
 
-  // ── 3. Filtra subtotais semanais e totais gerais ─────────────────
+  // ── Remove subtotais ─────────────────────────────────────────────────
   var vals=dateCols.map(function(dc){
     return dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
   }).filter(function(v){return v>0;});
   vals.sort(function(a,b){return a-b;});
   var med=vals[Math.floor(vals.length/2)]||1;
-
   var realCols=dateCols.filter(function(dc){
     var v=dc.ci<dirDiaRow.length&&dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0;
     return v>0&&v<=med*2.5;
   });
 
-  // ── 4. Últimas 10 datas (≈ 2 semanas) ───────────────────────────
-  var last2w=realCols.slice(-10);
-  var dates=[],iDia=[],iNt=[],dDia=[],dNt=[];
-  last2w.forEach(function(dc){
-    dates.push(dc.label);
-    dDia.push(dirDiaRow[dc.ci]?+(dirDiaRow[dc.ci].v||0):0);
-    iDia.push(indDiaRow&&indDiaRow[dc.ci]?+(indDiaRow[dc.ci].v||0):0);
-    dNt.push(dirNtRow&&dirNtRow[dc.ci]?+(dirNtRow[dc.ci].v||0):0);
-    iNt.push(indNtRow&&indNtRow[dc.ci]?+(indNtRow[dc.ci].v||0):0);
-  });
+  // ── Detecta pares DIA/NOITE por datas repetidas nas colunas ──────────
+  if(!hasPairs){
+    for(var pp=0;pp<realCols.length-1;pp++){
+      if(realCols[pp].label===realCols[pp+1].label){hasPairs=true;break;}
+    }
+  }
+
+  // Últimas 2 semanas
+  var last2w=hasPairs?realCols.slice(-20):realCols.slice(-14);
+
+  // ── Constrói arrays ──────────────────────────────────────────────────
+  var dates=[],dDia=[],dNt=[],iDia=[],iNt=[];
+  var i=0;
+  while(i<last2w.length){
+    var c1=last2w[i];
+    var c2=(hasPairs&&i+1<last2w.length&&last2w[i+1].label===c1.label)?last2w[i+1]:null;
+    dates.push(c1.label);
+    var dv1=dirDiaRow[c1.ci]?+(dirDiaRow[c1.ci].v||0):0;
+    var iv1=indDiaRow&&indDiaRow[c1.ci]?+(indDiaRow[c1.ci].v||0):0;
+    if(c2){
+      dDia.push(dv1); dNt.push(dirNtRow&&dirNtRow[c2.ci]?+(dirNtRow[c2.ci].v||0):0);
+      iDia.push(iv1); iNt.push(indNtRow&&indNtRow[c2.ci]?+(indNtRow[c2.ci].v||0):0);
+      i+=2;
+    } else {
+      dDia.push(dv1); dNt.push(0);
+      iDia.push(iv1); iNt.push(0);
+      i++;
+    }
+  }
   if(!dates.length) return null;
+
+  // ── Inverte para exibir da data mais antiga para a mais atual ─────────
+  dates.reverse(); dDia.reverse(); dNt.reverse(); iDia.reverse(); iNt.reverse();
+
   return {dates:dates,hasPairs:hasPairs,ind:{dia:iDia,noite:iNt},dir:{dia:dDia,noite:dNt}};
 }
+
 
 function renderEfetivo(ef){
   var el=document.getElementById('efChart');if(!el)return;
@@ -681,8 +712,8 @@ function init() {
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efUrls=[
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=B3:R10',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=B3:R10'
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11'
       ];
       (function tryEf(idx){
         if(idx>=_efUrls.length){
