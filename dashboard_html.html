@@ -263,6 +263,70 @@ function fmtEfDate(v){
   return null;
 }
 
+function parseEfetivoHtml(txt){
+  if(!/<table/i.test(txt)) return null;
+  var doc=new DOMParser().parseFromString(txt,'text/html');
+  var trs=Array.prototype.slice.call(doc.querySelectorAll('table tr'));
+  var raw=trs.map(function(tr){
+    return Array.prototype.slice.call(tr.querySelectorAll('td')).map(function(td){
+      var inner=td.querySelector('.softmerge-inner');
+      return (inner?inner.textContent:td.textContent).replace(/\s+/g,' ').trim();
+    });
+  }).filter(function(row){return row.some(function(v){return v!=='';});});
+  if(!raw.length) return null;
+  var headerIdx=-1;
+  for(var h=0;h<raw.length;h++){
+    var joined=raw[h].join('|').toUpperCase();
+    if(joined.indexOf('TURNO')>=0&&joined.indexOf('MÃO DE OBRA')>=0){headerIdx=h;break;}
+  }
+  if(headerIdx<0) return null;
+  var header=raw[headerIdx].slice(), lastDate='';
+  for(var ci=0;ci<header.length;ci++){
+    if(fmtEfDate(header[ci])){lastDate=header[ci];continue;}
+    if(ci>=2&&lastDate&&header[ci]==='') header[ci]=lastDate;
+  }
+  var rows=[header].concat(raw.slice(headerIdx+1,headerIdx+8));
+  return parseEfetivoRows(rows.map(function(row){
+    return {c:row.map(function(v){return {v:v};})};
+  }), []);
+}
+
+function parseCsvLine(line){
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line.charAt(i),nx=line.charAt(i+1);
+    if(ch==='"'&&q&&nx==='"'){cur+='"';i++;continue;}
+    if(ch==='"'){q=!q;continue;}
+    if(ch===','&&!q){out.push(cur.trim());cur='';continue;}
+    cur+=ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function parseEfetivoCsv(txt){
+  if(txt.indexOf(',')<0||txt.indexOf('\n')<0) return null;
+  var raw=txt.replace(/\r/g,'').split('\n').map(parseCsvLine).filter(function(row){
+    return row.some(function(v){return v!=='';});
+  });
+  if(!raw.length) return null;
+  var headerIdx=-1;
+  for(var h=0;h<raw.length;h++){
+    var joined=raw[h].join('|').toUpperCase();
+    if(joined.indexOf('TURNO')>=0&&joined.indexOf('OBRA')>=0){headerIdx=h;break;}
+  }
+  if(headerIdx<0) return null;
+  var header=raw[headerIdx].slice(), lastDate='';
+  for(var ci=0;ci<header.length;ci++){
+    if(fmtEfDate(header[ci])){lastDate=header[ci];continue;}
+    if(ci>=2&&lastDate&&header[ci]==='') header[ci]=lastDate;
+  }
+  var rows=[header].concat(raw.slice(headerIdx+1,headerIdx+8));
+  return parseEfetivoRows(rows.map(function(row){
+    return {c:row.map(function(v){return {v:v};})};
+  }), []);
+}
+
 // Parser para estrutura:
 //   Col A: TURNO (DIA / NOITE)
 //   Col B: MÃO DE OBRA (DIRETA / INDIRETA)
@@ -271,9 +335,13 @@ function fmtEfDate(v){
 function parseEfetivo(txt){
   var json;
   try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
-  catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return null;}}
+  catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return parseEfetivoCsv(txt)||parseEfetivoHtml(txt);}}
   if(!json||!json.table) return null;
   var cols=json.table.cols||[], rows=json.table.rows||[];
+  return parseEfetivoRows(rows, cols);
+}
+
+function parseEfetivoRows(rows, cols){
   if(!rows.length) return null;
 
   // ── Datas: de cols[] primeiro, depois varre rows ─────────────────────
@@ -309,12 +377,14 @@ function parseEfetivo(txt){
     }
     var hasLabel=function(k){return labels.some(function(l){return l===k||l.indexOf(k)>=0;});};
 
-    if(hasLabel('DIA')  &&!hasLabel('NOITE')&&!hasLabel('TOTAL')){inDia=true;inNoite=false;return;}
-    if(hasLabel('NOITE')&&!hasLabel('TOTAL')){inNoite=true;inDia=false;return;}
-    if(hasLabel('TOTAL')&&labels.some(function(l){return l.indexOf('GERAL')>=0||l.indexOf('TOTAL')>=0;})){inDia=inNoite=false;return;}
-
     var isDir=hasLabel('DIRETA')&&!hasLabel('INDIRETA');
     var isInd=hasLabel('INDIRETA');
+    var isDia=hasLabel('DIA')&&!hasLabel('NOITE')&&!hasLabel('TOTAL');
+    var isNoite=hasLabel('NOITE')&&!hasLabel('TOTAL');
+
+    if(isDia){inDia=true;inNoite=false;if(!isDir&&!isInd)return;}
+    if(isNoite){inNoite=true;inDia=false;if(!isDir&&!isInd)return;}
+    if(hasLabel('TOTAL')&&labels.some(function(l){return l.indexOf('GERAL')>=0||l.indexOf('TOTAL')>=0;})){inDia=inNoite=false;return;}
 
     if(inDia){
       if(isDir&&dirDiaIdx<0) dirDiaIdx=ri;
@@ -359,8 +429,10 @@ function parseEfetivo(txt){
     }
   }
 
-  // Últimas 2 semanas
-  var last2w=hasPairs?realCols.slice(-20):realCols.slice(-14);
+  // Últimas 2 semanas. A publicação HTML/CSV vem da data mais nova para a mais antiga.
+  function dateKey(lbl){var p=lbl.split('/');return (+p[1])*100+(+p[0]);}
+  var desc=realCols.length>1&&dateKey(realCols[0].label)>dateKey(realCols[realCols.length-1].label);
+  var last2w=hasPairs?(desc?realCols.slice(0,20):realCols.slice(-20)):(desc?realCols.slice(0,14):realCols.slice(-14));
 
   // ── Constrói arrays ──────────────────────────────────────────────────
   var dates=[],dDia=[],dNt=[],iDia=[],iNt=[];
@@ -714,7 +786,9 @@ function init() {
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efUrls=[
-        // 1-2: URL publicada na web (funciona sem auth)
+        // 1-4: URL publicada na web (funciona sem auth)
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv',
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pubhtml/sheet?headers=false&gid='+EF_GID,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID,
         // 3-4: XLSX original
