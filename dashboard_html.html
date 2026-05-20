@@ -234,8 +234,9 @@ function parseStatusDist(rows){var sd={conc:0,and:0,atrs:0,ini:0,total:0};for(va
 function renderStatusChart(sd){var el=document.getElementById('statusChart');if(!el)return;if(chartStatus)chartStatus.destroy();if(!sd||(!sd.conc&&!sd.and&&!sd.atrs&&!sd.ini))sd=STATUS_MANUAL;Chart.register(ChartDataLabels);chartStatus=new Chart(el,{type:'pie',plugins:[ChartDataLabels],data:{labels:['Conclu\u00eddo ('+sd.conc+')','Em Andamento ('+sd.and+')','Atrasado ('+sd.atrs+')','A Iniciar ('+sd.ini+')'],datasets:[{data:[sd.conc,sd.and,sd.atrs,sd.ini],backgroundColor:['#1a6637','#2563eb','#dc2626','#f59e0b'],borderColor:'#fff',borderWidth:2,hoverOffset:8,datalabels:{display:false}}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11},boxWidth:13,padding:10}},datalabels:{display:false},tooltip:{callbacks:{label:function(c){return ' '+c.label+': '+c.raw;}}}}}});}
 
 // ── EFETIVO ─────────────────────────────────────────────────────────────────
-var EF_SHEET  = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ'; // XLSX compartilhado
-var EF_SHEET2 = '1A_ALf2ewxF-2sIVV6_5jUGc-LuArS48AUBWybqPIky8'; // Google Sheets backup
+var EF_SHEET  = '1wU1t8kN0bxXoxsYibfo85_GQQog3LxYJ';
+var EF_SHEET2 = '1A_ALf2ewxF-2sIVV6_5jUGc-LuArS48AUBWybqPIky8';
+var EF_PUB    = '2PACX-1vSi3G-Xg22njO_3Gby3oK3JERYwiKOcq0fjyRZtRtnm1Y-NQL-wmvELvWTU9rcuDA'; // Publicado na web
 var EF_GID    = '836892721';
 var EF_TAB    = 'Tabela 01';
 // Fallback com dados reais da planilha (20/mai/2026)
@@ -713,8 +714,13 @@ function init() {
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efUrls=[
+        // 1-2: URL publicada na web (funciona sem auth)
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&tqx=out:json&range=C4:AC11',
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&tqx=out:json',
+        // 3-4: XLSX original
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11',
+        // 5-6: Google Sheets backup
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=C4:AC11',
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=C4:AC11'
       ];
