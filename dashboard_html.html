@@ -778,29 +778,23 @@ function init() {
       if(!atualDate)atualDate=parseControlDate(results[0])||ts.slice(0,5);
       var sd=results[3]?parseStatusDist(results[3]):null;
       render(d,results[1]?parseCurva(results[1]):null,results[2]?parseConcluidas(results[2]):null,ts,atualDate,sd);
-      // Efetivo: 4 URLs em cascata (XLSX + GSheets backup)
+      // Efetivo: usa somente a publicaÃ§Ã£o informada pelo usuÃ¡rio, sem fallback antigo.
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
+      var _efBust='&_cb='+(Date.now());
       var _efUrls=[
-        // 1-4: URL publicada na web (funciona sem auth)
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv',
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pubhtml/sheet?headers=false&gid='+EF_GID,
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
-        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/gviz/tq?tqx=out:json&gid='+EF_GID,
-        // 3-4: XLSX original
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=A4:AC11',
-        // 5-6: Google Sheets backup
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=A4:AC11',
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET2+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(EF_TAB)+'&range=A4:AC11'
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv'+_efBust,
+        'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pubhtml/sheet?headers=false&gid='+EF_GID+_efBust
       ];
       (function tryEf(idx){
         if(idx>=_efUrls.length){
-          if(_efStatus) _efStatus.style.color='#f59e0b';
+          if(_efStatus) _efStatus.style.color='#dc2626';
           if(_efStatus) _efStatus.textContent='Usando dados de referência — planilha acessível via GViz?';
-          renderEfetivo(EF_FALLBACK); return;
+          if(_efStatus) _efStatus.textContent='Nao foi possivel carregar a planilha publicada.';
+          renderEfetivo({dates:[],hasPairs:true,ind:{dia:[],noite:[]},dir:{dia:[],noite:[]}});
+          return;
         }
-        fetch(_efUrls[idx]).then(function(r){return r.text();})
+        fetch(_efUrls[idx],{cache:'no-store'}).then(function(r){return r.text();})
           .then(function(t){
             var d=parseEfetivo(t);
             if(d&&d.dates&&d.dates.length>0){
