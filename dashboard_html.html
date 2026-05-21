@@ -284,6 +284,29 @@ function parseGvizJson(txt){
   return json;
 }
 
+function loadGvizJsonp(sheetId,gid,range){
+  return new Promise(function(resolve,reject){
+    var cb='gvizCb_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    var s=document.createElement('script');
+    var done=false;
+    window[cb]=function(json){
+      if(done)return;done=true;
+      try{delete window[cb];}catch(e){window[cb]=undefined;}
+      if(s.parentNode)s.parentNode.removeChild(s);
+      resolve(json);
+    };
+    s.onerror=function(){
+      if(done)return;done=true;
+      try{delete window[cb];}catch(e){window[cb]=undefined;}
+      if(s.parentNode)s.parentNode.removeChild(s);
+      reject(new Error('GViz JSONP falhou'));
+    };
+    s.src='https://docs.google.com/spreadsheets/d/'+sheetId+'/gviz/tq?tqx=out:json;responseHandler:'+cb+'&gid='+gid+'&range='+encodeURIComponent(range)+'&_cb='+Date.now();
+    document.head.appendChild(s);
+    setTimeout(function(){if(!done)s.onerror();},12000);
+  });
+}
+
 function parseEfetivoHtml(txt){
   if(!/<table/i.test(txt)) return null;
   var doc=new DOMParser().parseFromString(txt,'text/html');
@@ -490,8 +513,8 @@ function parseEfetivoRows(rows, cols){
   return {dates:dates,hasPairs:hasPairs,ind:{dia:iDia,noite:iNt},dir:{dia:dDia,noite:dNt}};
 }
 
-function parseFuncaoQuant(txt){
-  var json=parseGvizJson(txt), rows=json.table.rows||[];
+function parseFuncaoQuantJson(json){
+  var rows=json.table.rows||[];
   if(!rows.length)return null;
   var hasFuncao=false;
   for(var hr=0;hr<Math.min(4,rows.length);hr++){
@@ -527,6 +550,10 @@ function parseFuncaoQuant(txt){
     result.sourceMessage='A Tabela 02 est\u00e1 retornando o resumo por M\u00e3o de Obra, n\u00e3o por Fun\u00e7\u00e3o Medi\u00e7\u00e3o.';
   }
   return result;
+}
+
+function parseFuncaoQuant(txt){
+  return parseFuncaoQuantJson(parseGvizJson(txt));
 }
 
 function renderFuncaoQuant(fq){
@@ -906,10 +933,9 @@ function init() {
       (function tryFuncoes(idx){
         var gids=(typeof EF_FUNCOES_GIDS!=='undefined'&&EF_FUNCOES_GIDS.length)?EF_FUNCOES_GIDS:[EF_FUNCOES_GID];
         if(idx>=gids.length){renderFuncaoQuant(null);return;}
-        fetch('https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+gids[idx]+'&range='+encodeURIComponent(EF_FUNCOES_RANGE)+_efBust,{cache:'no-store'})
-          .then(function(r){return r.text();})
-          .then(function(t){
-            var fq=parseFuncaoQuant(t);
+        loadGvizJsonp(EF_SHEET,gids[idx],EF_FUNCOES_RANGE)
+          .then(function(json){
+            var fq=parseFuncaoQuantJson(json);
             if(fq&&!fq.missingFuncao&&(fq.direta.length||fq.indireta.length))renderFuncaoQuant(fq);
             else tryFuncoes(idx+1);
           })
