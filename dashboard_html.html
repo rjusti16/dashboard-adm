@@ -463,19 +463,29 @@ function renderEfetivo(ef){
   if(chartEfetivo)chartEfetivo.destroy();
   if(!ef||!ef.dates||!ef.dates.length)return;
 
+  function weekdayPt(dt){
+    var p=String(dt).split('/'),d=+p[0],m=+p[1];
+    var names=['domingo','segunda-feira','ter\u00e7a-feira','quarta-feira','quinta-feira','sexta-feira','s\u00e1bado'];
+    if(!d||!m)return '';
+    return names[new Date(2026,m-1,d).getDay()];
+  }
   var labels=[],indData=[],dirData=[];
   ef.dates.forEach(function(dt,i){
     if(ef.hasPairs){labels.push('DIA','NOITE');indData.push(ef.ind.dia[i]||0,ef.ind.noite[i]||0);dirData.push(ef.dir.dia[i]||0,ef.dir.noite[i]||0);}
     else{labels.push(dt);indData.push(ef.ind.dia[i]||0);dirData.push(ef.dir.dia[i]||0);}
   });
-  var capDates=ef.dates.slice(),capInd=indData.slice(),capDir=dirData.slice(),capPairs=ef.hasPairs;
+  var capDates=ef.dates.slice(),capWeekdays=ef.dates.map(weekdayPt),capInd=indData.slice(),capDir=dirData.slice(),capPairs=ef.hasPairs;
 
   // Plugin A — data centralizada abaixo do par DIA/NOITE
   var datePlugin={id:'efDates',afterDraw:function(chart){
     if(!capPairs)return;
     var ctx=chart.ctx,xs=chart.scales.x,yB=chart.chartArea.bottom;
-    ctx.save();ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.textAlign='center';
-    capDates.forEach(function(dt,i){ctx.fillText(dt,(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2,yB+30);});
+    ctx.save();ctx.textAlign='center';
+    capDates.forEach(function(dt,i){
+      var x=(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2;
+      ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.fillText(dt,x,yB+28);
+      ctx.font='9px "Segoe UI",sans-serif';ctx.fillStyle='#9ca3af';ctx.fillText(capWeekdays[i]||'',x,yB+42);
+    });
     ctx.restore();
   }};
 
@@ -506,7 +516,7 @@ function renderEfetivo(ef){
       }}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      layout:{padding:{top:22,bottom:capPairs?26:4}},
+      layout:{padding:{top:22,bottom:capPairs?46:4}},
       scales:{
         x:{stacked:true,ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},grid:{display:false}},
         y:{stacked:true,beginAtZero:true,max:xMax,ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/8)},grid:{color:'rgba(0,0,0,.05)'}}
