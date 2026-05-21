@@ -239,6 +239,8 @@ var EF_SHEET2 = '1A_ALf2ewxF-2sIVV6_5jUGc-LuArS48AUBWybqPIky8';
 var EF_PUB    = '2PACX-1vSi3G-Xg22njO_3Gby3oK3JERYwiKOcq0fjyRZtRtnm1Y-NQL-wmvELvWTU9rcuDA'; // Publicado na web
 var EF_GID    = '836892721';
 var EF_TAB    = 'Tabela 01';
+var EF_FUNCOES_GID = '1846785892';
+var EF_FUNCOES_RANGE = 'A1:O42';
 // Fallback com dados reais da planilha (20/mai/2026)
 var EF_FALLBACK = {
   dates:['09/mai','11/mai','12/mai','13/mai','14/mai','15/mai','16/mai','18/mai','19/mai','20/mai'],
@@ -265,6 +267,20 @@ function fmtEfDate(v){
   m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
   if(m){var a=+m[1],b=+m[2]; return a<=12&&b<=31?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):(b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2));}
   return null;
+}
+
+function weekdayEfPt(dt){
+  var p=String(dt).split('/'),d=+p[0],m=+p[1];
+  var names=['domingo','segunda-feira','ter\u00e7a-feira','quarta-feira','quinta-feira','sexta-feira','s\u00e1bado'];
+  if(!d||!m)return '';
+  return names[new Date(2026,m-1,d).getDay()];
+}
+
+function parseGvizJson(txt){
+  var json;
+  try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
+  catch(e){json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}
+  return json;
 }
 
 function parseEfetivoHtml(txt){
@@ -338,8 +354,8 @@ function parseEfetivoCsv(txt){
 // Linha de datas (row 16 da planilha) vira cols[] no GViz
 function parseEfetivo(txt){
   var json;
-  try{json=JSON.parse(txt.replace(/^[^{]*/,'').replace(/[^}]*$/,''));}
-  catch(e){try{json=JSON.parse(txt.slice(txt.indexOf('{'),txt.lastIndexOf('}')+1));}catch(e2){return parseEfetivoCsv(txt)||parseEfetivoHtml(txt);}}
+  try{json=parseGvizJson(txt);}
+  catch(e){return parseEfetivoCsv(txt)||parseEfetivoHtml(txt);}
   if(!json||!json.table) return null;
   var cols=json.table.cols||[], rows=json.table.rows||[];
   return parseEfetivoRows(rows, cols);
@@ -473,6 +489,56 @@ function parseEfetivoRows(rows, cols){
   return {dates:dates,hasPairs:hasPairs,ind:{dia:iDia,noite:iNt},dir:{dia:dDia,noite:dNt}};
 }
 
+function parseFuncaoQuant(txt){
+  var json=parseGvizJson(txt), rows=json.table.rows||[];
+  if(!rows.length)return null;
+  var dateRow=rows[0]&&rows[0].c?rows[0].c:[], dateCol=-1, date='';
+  for(var c=2;c<dateRow.length;c++){
+    var cell=dateRow[c], dt=cell?fmtEfDate(cell.f!=null?cell.f:cell.v):null;
+    if(dt){dateCol=c;date=dt;break;}
+  }
+  if(dateCol<0)return null;
+  var result={date:date,weekday:weekdayEfPt(date),total:0,direta:[],indireta:[]};
+  var sec='';
+  function cellText(row,ci){var cell=row&&row.c&&row.c[ci];return cell?(cell.v!=null?String(cell.v):String(cell.f||'')):'';}
+  function cellNum(row,ci){var cell=row&&row.c&&row.c[ci];var v=cell?(cell.v!=null?cell.v:cell.f):0;var n=Number(v);return isNaN(n)?0:n;}
+  for(var r=1;r<rows.length;r++){
+    var label=cellText(rows[r],0).trim().toUpperCase();
+    var func=cellText(rows[r],1).trim();
+    if(label.indexOf('TOTAL')>=0){result.total=cellNum(rows[r],dateCol);break;}
+    if(label.indexOf('INDIRETA')>=0)sec='indireta';
+    else if(label.indexOf('DIRETA')>=0)sec='direta';
+    if(!func||!sec)continue;
+    var qtd=cellNum(rows[r],dateCol);
+    if(qtd>0)result[sec].push({func:func,qtd:qtd});
+  }
+  if(!result.total)result.total=result.direta.concat(result.indireta).reduce(function(a,x){return a+x.qtd;},0);
+  return result;
+}
+
+function renderFuncaoQuant(fq){
+  var el=document.getElementById('funcaoTable');if(!el)return;
+  if(!fq){el.innerHTML='<p style="font-size:12px;color:#dc2626;padding:12px 0">N\u00e3o foi poss\u00edvel carregar a Tabela 02.</p>';return;}
+  function table(title,items,color){
+    var rows=items.map(function(it,i){
+      return '<tr><td style="width:34px;text-align:center;color:#9ca3af">'+(i+1)+'</td><td>'+it.func+'</td><td style="width:70px;text-align:center;font-weight:700">'+it.qtd+'</td></tr>';
+    }).join('');
+    if(!rows)rows='<tr><td colspan="3" style="text-align:center;color:#9ca3af;padding:14px">Sem quantitativos.</td></tr>';
+    return '<div><div style="display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:12px;font-weight:700;color:#374151">'
+      +'<span style="width:9px;height:9px;border-radius:2px;background:'+color+';display:inline-block"></span>'+title+'</div>'
+      +'<div class="tbl-wrap"><table><thead><tr><th style="width:34px;text-align:center">#</th><th>Fun\u00e7\u00e3o</th><th style="text-align:center;width:70px">Qtd.</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  }
+  el.innerHTML='<div style="border-top:1px solid #eef0f3;margin-top:18px;padding-top:16px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">'
+    +'<div style="font-size:13px;font-weight:700;color:#111">Quantitativo por fun\u00e7\u00e3o no dia</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    +'<span style="background:#eef6ff;color:#1d4ed8;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700">'+fq.date+'</span>'
+    +'<span style="background:#f3f4f6;color:#6b7280;border-radius:6px;padding:4px 10px;font-size:11px">'+fq.weekday+'</span>'
+    +'<span style="background:#ecfdf5;color:#047857;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700">Total: '+fq.total+'</span>'
+    +'</div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+table('Direta',fq.direta,'#2e6da4')+table('Indireta',fq.indireta,'#c0392b')+'</div></div>';
+}
+
 
 function renderEfetivo(ef){
   var el=document.getElementById('efChart');if(!el)return;
@@ -480,10 +546,7 @@ function renderEfetivo(ef){
   if(!ef||!ef.dates||!ef.dates.length)return;
 
   function weekdayPt(dt){
-    var p=String(dt).split('/'),d=+p[0],m=+p[1];
-    var names=['domingo','segunda-feira','ter\u00e7a-feira','quarta-feira','quinta-feira','sexta-feira','s\u00e1bado'];
-    if(!d||!m)return '';
-    return names[new Date(2026,m-1,d).getDay()];
+    return weekdayEfPt(dt);
   }
   var labels=[],indData=[],dirData=[];
   ef.dates.forEach(function(dt,i){
@@ -771,6 +834,7 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +'</div></div></div>'
     +'<div id="efStatus" style="font-size:11px;color:#9ca3af;padding:0 14px 4px"></div>'
     +'<div style="position:relative;height:300px"><canvas id="efChart"></canvas></div>'
+    +'<div id="funcaoTable" style="font-size:11.5px;color:#374151"></div>'
     +'</div>'
 
     +'<footer>Fonte: Cronograma ADM (MS Project) · Área 25001 — Ampliação Preparação Atual · Atualização automática via Google Sheets</footer>';
@@ -825,6 +889,10 @@ function init() {
       var _efStatus=document.getElementById('efStatus');
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efBust='&_cb='+(Date.now());
+      fetch('https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_FUNCOES_GID+'&range='+encodeURIComponent(EF_FUNCOES_RANGE)+_efBust,{cache:'no-store'})
+        .then(function(r){return r.text();})
+        .then(function(t){renderFuncaoQuant(parseFuncaoQuant(t));})
+        .catch(function(){renderFuncaoQuant(null);});
       var _efUrls=[
         'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=B2:S9'+_efBust,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv'+_efBust,
