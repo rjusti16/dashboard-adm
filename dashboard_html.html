@@ -499,9 +499,26 @@ function renderEfetivo(ef){
     ctx.save();ctx.textAlign='center';
     capDates.forEach(function(dt,i){
       var x=(xs.getPixelForValue(i*2)+xs.getPixelForValue(i*2+1))/2;
-      ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.fillText(dt,x,yB+28);
-      ctx.font='9px "Segoe UI",sans-serif';ctx.fillStyle='#9ca3af';ctx.fillText(capWeekdays[i]||'',x,yB+42);
+      ctx.font='10px "Segoe UI",sans-serif';ctx.fillStyle='#6b7280';ctx.fillText(dt,x,yB+36);
+      ctx.font='9px "Segoe UI",sans-serif';ctx.fillStyle='#9ca3af';ctx.fillText(capWeekdays[i]||'',x,yB+52);
     });
+    ctx.restore();
+  }};
+
+  var divPlugin={id:'efDividers',afterDraw:function(chart){
+    if(!capPairs)return;
+    var ctx=chart.ctx,xs=chart.scales.x,area=chart.chartArea;
+    ctx.save();
+    ctx.strokeStyle='rgba(17,24,39,.28)';
+    ctx.lineWidth=1;
+    ctx.setLineDash([3,4]);
+    for(var i=1;i<capDates.length;i++){
+      var x=(xs.getPixelForValue(i*2-1)+xs.getPixelForValue(i*2))/2;
+      ctx.beginPath();
+      ctx.moveTo(x,area.top+2);
+      ctx.lineTo(x,area.bottom+4);
+      ctx.stroke();
+    }
     ctx.restore();
   }};
 
@@ -524,7 +541,7 @@ function renderEfetivo(ef){
   xMax=Math.ceil(xMax/10)*10+10;
 
   Chart.register(ChartDataLabels);
-  chartEfetivo=new Chart(el,{type:'bar',plugins:[ChartDataLabels,datePlugin,totPlugin],
+  chartEfetivo=new Chart(el,{type:'bar',plugins:[ChartDataLabels,datePlugin,divPlugin,totPlugin],
     data:{labels:labels,datasets:[
       {label:'Indireta',data:indData,backgroundColor:'#c0392b',datalabels:{anchor:'center',align:'center',color:'#fff',font:{size:10,weight:'bold'},formatter:function(v){return v>0?v:'';}
       }},
@@ -532,9 +549,9 @@ function renderEfetivo(ef){
       }}
     ]},
     options:{responsive:true,maintainAspectRatio:false,
-      layout:{padding:{top:22,bottom:capPairs?46:4}},
+      layout:{padding:{top:22,bottom:capPairs?62:4}},
       scales:{
-        x:{stacked:true,ticks:{font:{size:10},color:'#6b7280',maxRotation:0,autoSkip:false},grid:{display:false}},
+        x:{stacked:true,ticks:{font:{size:9},color:'#6b7280',maxRotation:0,autoSkip:false,padding:4},grid:{display:false}},
         y:{stacked:true,beginAtZero:true,max:xMax,ticks:{font:{size:10},color:'#9ca3af',stepSize:Math.ceil(xMax/8)},grid:{color:'rgba(0,0,0,.05)'}}
       },
       plugins:{legend:{display:false},datalabels:{},
