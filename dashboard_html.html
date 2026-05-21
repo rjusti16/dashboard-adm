@@ -492,13 +492,22 @@ function parseEfetivoRows(rows, cols){
 function parseFuncaoQuant(txt){
   var json=parseGvizJson(txt), rows=json.table.rows||[];
   if(!rows.length)return null;
+  var hasFuncao=false;
+  for(var hr=0;hr<Math.min(4,rows.length);hr++){
+    var hrow=rows[hr]&&rows[hr].c?rows[hr].c:[];
+    for(var hc=0;hc<hrow.length;hc++){
+      var hv=hrow[hc]?String(hrow[hc].v||hrow[hc].f||'').toUpperCase():'';
+      if(hv.indexOf('FUN')>=0){hasFuncao=true;break;}
+    }
+    if(hasFuncao)break;
+  }
   var dateRow=rows[0]&&rows[0].c?rows[0].c:[], dateCol=-1, date='';
   for(var c=2;c<dateRow.length;c++){
     var cell=dateRow[c], dt=cell?fmtEfDate(cell.f!=null?cell.f:cell.v):null;
     if(dt){dateCol=c;date=dt;break;}
   }
   if(dateCol<0)return null;
-  var result={date:date,weekday:weekdayEfPt(date),total:0,direta:[],indireta:[]};
+  var result={date:date,weekday:weekdayEfPt(date),total:0,direta:[],indireta:[],missingFuncao:!hasFuncao};
   var sec='';
   function cellText(row,ci){var cell=row&&row.c&&row.c[ci];return cell?(cell.v!=null?String(cell.v):String(cell.f||'')):'';}
   function cellNum(row,ci){var cell=row&&row.c&&row.c[ci];var v=cell?(cell.v!=null?cell.v:cell.f):0;var n=Number(v);return isNaN(n)?0:n;}
@@ -513,6 +522,9 @@ function parseFuncaoQuant(txt){
     if(qtd>0)result[sec].push({func:func,qtd:qtd});
   }
   if(!result.total)result.total=result.direta.concat(result.indireta).reduce(function(a,x){return a+x.qtd;},0);
+  if(result.missingFuncao){
+    result.sourceMessage='A Tabela 02 est\u00e1 retornando o resumo por M\u00e3o de Obra, n\u00e3o por Fun\u00e7\u00e3o Medi\u00e7\u00e3o.';
+  }
   return result;
 }
 
@@ -536,6 +548,7 @@ function renderFuncaoQuant(fq){
     +'<span style="background:#f3f4f6;color:#6b7280;border-radius:6px;padding:4px 10px;font-size:11px">'+fq.weekday+'</span>'
     +'<span style="background:#ecfdf5;color:#047857;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700">Total: '+fq.total+'</span>'
     +'</div></div>'
+    +(fq.sourceMessage?'<div style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px">'+fq.sourceMessage+'</div>':'')
     +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'+table('Direta',fq.direta,'#2e6da4')+table('Indireta',fq.indireta,'#c0392b')+'</div></div>';
 }
 
@@ -894,7 +907,7 @@ function init() {
         .then(function(t){renderFuncaoQuant(parseFuncaoQuant(t));})
         .catch(function(){renderFuncaoQuant(null);});
       var _efUrls=[
-        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=B2:S9'+_efBust,
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=B2:T9'+_efBust,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv'+_efBust,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pubhtml/sheet?headers=false&gid='+EF_GID+_efBust
       ];
