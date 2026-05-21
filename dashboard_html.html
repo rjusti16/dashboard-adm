@@ -250,6 +250,10 @@ var EF_FALLBACK = {
 var EF_MESES = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
 function fmtEfDate(v){
   if(!v&&v!==0) return null;
+  if(typeof v==='number'&&v>10000){
+    var dn=new Date(Math.round((v-25569)*86400000));
+    return ('0'+dn.getUTCDate()).slice(-2)+'/'+('0'+(dn.getUTCMonth()+1)).slice(-2);
+  }
   var s=String(v).toLowerCase().replace(/\./g,'').trim();
   // "27/abr", "04/mai", "7-abr"
   var m=s.match(/^(\d{1,2})[\-\/\s]([a-z]{3})/);
@@ -257,9 +261,9 @@ function fmtEfDate(v){
   // Date(yyyy,m,d)
   m=String(v).match(/Date\((\d+),(\d+),(\d+)/);
   if(m) return ('0'+m[3]).slice(-2)+'/'+('0'+(+m[2]+1)).slice(-2);
-  // dd/mm/yyyy
+  // mm/dd/yyyy ou dd/mm/yyyy
   m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-]\d{2,4}/);
-  if(m){var a=+m[1],b=+m[2]; return b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2);}
+  if(m){var a=+m[1],b=+m[2]; return a<=12&&b<=31?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):(b>12?('0'+b).slice(-2)+'/'+('0'+a).slice(-2):('0'+a).slice(-2)+'/'+('0'+b).slice(-2));}
   return null;
 }
 
@@ -403,6 +407,18 @@ function parseEfetivoRows(rows, cols){
   if(indDiaIdx<0&&indAll.length>=1) indDiaIdx=indAll[0];
   if(dirNtIdx<0 &&dirAll.length>=2) dirNtIdx =dirAll[1];
   if(indNtIdx<0 &&indAll.length>=2) indNtIdx =indAll[1];
+  if(dirDiaIdx<0){
+    var work=[];
+    rows.forEach(function(row,ri){
+      if(ri<dataStart||!row||!row.c)return;
+      var l0=String(row.c[0]?(row.c[0].v||row.c[0].f||''):'').toUpperCase();
+      if(l0.indexOf('DIRETA')>=0||l0.indexOf('INDIRETA')>=0) work.push({ri:ri,l:l0});
+    });
+    if(work.length>=4){
+      dirDiaIdx=work[0].ri; indDiaIdx=work[1].ri;
+      dirNtIdx=work[2].ri; indNtIdx=work[3].ri;
+    }
+  }
   if(dirDiaIdx<0) return null;
 
   var dirDiaRow=rows[dirDiaIdx].c;
@@ -444,15 +460,15 @@ function parseEfetivoRows(rows, cols){
       iDia.push(iv1); iNt.push(rowNum(indNtRow,c2.ci));
       i+=2;
     } else {
-      dDia.push(dv1); dNt.push(0);
-      iDia.push(iv1); iNt.push(0);
+      dDia.push(dv1); dNt.push(rowNum(dirNtRow,c1.ci));
+      iDia.push(iv1); iNt.push(rowNum(indNtRow,c1.ci));
       i++;
     }
   }
   if(!dates.length) return null;
 
   // ── Inverte para exibir da data mais antiga para a mais atual ─────────
-  dates.reverse(); dDia.reverse(); dNt.reverse(); iDia.reverse(); iNt.reverse();
+  if(desc){dates.reverse(); dDia.reverse(); dNt.reverse(); iDia.reverse(); iNt.reverse();}
 
   return {dates:dates,hasPairs:hasPairs,ind:{dia:iDia,noite:iNt},dir:{dia:dDia,noite:dNt}};
 }
@@ -793,6 +809,7 @@ function init() {
       if(_efStatus) _efStatus.textContent='Carregando...';
       var _efBust='&_cb='+(Date.now());
       var _efUrls=[
+        'https://docs.google.com/spreadsheets/d/'+EF_SHEET+'/gviz/tq?tqx=out:json&gid='+EF_GID+'&range=B2:S9'+_efBust,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pub?gid='+EF_GID+'&single=true&output=csv'+_efBust,
         'https://docs.google.com/spreadsheets/d/e/'+EF_PUB+'/pubhtml/sheet?headers=false&gid='+EF_GID+_efBust
       ];
