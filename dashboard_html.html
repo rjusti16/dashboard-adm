@@ -184,7 +184,7 @@ function parseRelatorio(rows) {
       if(v4!=null&&!isNaN(+v4))totAc=+v4; if(v5!=null&&!isNaN(+v5))atrs=+v5;
     }
   }
-  var devs=[{nm:'ADM do Brasil',qt:7,cor:'#dc2626'},{nm:'Irmãos Passaúra',qt:19,cor:'#2563eb'},{nm:'ADM + Irmãos Passaúra',qt:0,cor:'#9ca3af'}];
+  var devs=[{nm:'ADM do Brasil',qt:0,cor:'#dc2626'},{nm:'Irmãos Passaúra',qt:0,cor:'#2563eb'},{nm:'Sem responsável definido',qt:0,cor:'#9ca3af'}];
   var qtdPos=findPos(rows,'QTD DESVIOS');
   if (qtdPos) {
     var hr=qtdPos[0],hc=qtdPos[1],nc=hc-1;
@@ -193,7 +193,7 @@ function parseRelatorio(rows) {
       if(nm&&qt!=null&&nm.toLowerCase().indexOf('total')<0) devs[i]={nm:nm,qt:Number(qt),cor:devs[i].cor};
     }
   }
-  var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0)||1;
+  var totDv=devs.reduce(function(a,d){return a+Number(d.qt);},0);
   var top20=[],topPos=findPos(rows,'top 20');
   if (topPos) {
     var er=topPos[0],ec=topPos[1];
@@ -225,6 +225,24 @@ function parseRelatorio(rows) {
   }
   var allActs=top20.map(function(t){return {edt:t.edt,ativ:t.ativ,real:t.real};});
   return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,allActs:allActs,dataAtual:dataAtual};
+}
+
+function parseDesviosResp(rows){
+  var devs=[{nm:'ADM do Brasil',qt:0,cor:'#dc2626'},{nm:'Irmãos Passaúra',qt:0,cor:'#2563eb'},{nm:'Sem responsável definido',qt:0,cor:'#9ca3af'}];
+  var total=0;
+  function val(row,ci){var c=row&&row.c&&row.c[ci];return c?(c.v!=null?c.v:c.f):null;}
+  function n(v){var x=parseFloat(String(v==null?'':v).replace(',','.').replace(/[^0-9.\-]/g,''));return isNaN(x)?0:x;}
+  for(var r=0;r<rows.length;r++){
+    var label=String(val(rows[r],0)||'').toLowerCase().trim();
+    var qt=n(val(rows[r],1));
+    if(!label)continue;
+    if(label.indexOf('total')>=0){total=qt;continue;}
+    if(label.indexOf('adm do brasil')>=0)devs[0].qt=qt;
+    else if(label.indexOf('irm')>=0&&label.indexOf('passa')>=0)devs[1].qt=qt;
+    else if(label.indexOf('sem')>=0&&label.indexOf('respons')>=0)devs[2].qt=qt;
+  }
+  if(!total)total=devs.reduce(function(a,d){return a+Number(d.qt);},0);
+  return {devs:devs,totDv:total};
 }
 
 
@@ -780,6 +798,7 @@ function buildConclSection(concl) {
 
 function render(d, curva, concl, ts, atualDate, sd) {
   var ahead=d.dPct>=0;
+  function pctDev(v){return d.totDv?Math.round(v.qt/d.totDv*100):0;}
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
     return '<tr class="data-row" onclick="toggleObs('+i+')">'
@@ -835,10 +854,10 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +'<div class="pb-track"><div class="pb-fill" style="width:'+Math.min(d.pPct,100)+'%;background:linear-gradient(90deg,#e5e7eb,#9ca3af 60%,#6b7280);box-shadow:0 2px 6px rgba(107,114,128,0.35);animation-delay:.2s"></div></div></div>'
     +'<div class="st-box '+(ahead?'ok':'bad')+'">'+(ahead?'✔ Projeto adiantado':'⚠ Projeto atrasado')+' — '+(ahead?'+':'')+d.dPct.toFixed(2)+' p.p. '+(ahead?'acima':'abaixo')+' do previsto</div>'
     +'<div style="height:18px"></div><div class="ct">Desvios por responsável</div>'
-    +d.devs.map(function(v){return '<div class="dv-row"><div class="dv-nm">'+v.nm+'</div><div class="dv-track"><div class="dv-fill" style="width:'+Math.round(v.qt/d.totDv*100)+'%;background:'+v.cor+'"></div></div><div class="dv-cnt">'+v.qt+'</div><div class="dv-pct">'+Math.round(v.qt/d.totDv*100)+'%</div></div>';}).join('')
+    +d.devs.map(function(v){return '<div class="dv-row"><div class="dv-nm">'+v.nm+'</div><div class="dv-track"><div class="dv-fill" style="width:'+pctDev(v)+'%;background:'+v.cor+'"></div></div><div class="dv-cnt">'+v.qt+'</div><div class="dv-pct">'+pctDev(v)+'%</div></div>';}).join('')
     +'</div>'
     +'<div class="card"><div class="ct">Distribuição de desvios</div>'
-    +'<div class="legend">'+d.devs.map(function(v){return '<div class="leg"><div class="leg-dot" style="background:'+v.cor+'"></div>'+v.nm+' — <strong>'+v.qt+'</strong> ('+Math.round(v.qt/d.totDv*100)+'%)</div>';}).join('')+'</div>'
+    +'<div class="legend">'+d.devs.map(function(v){return '<div class="leg"><div class="leg-dot" style="background:'+v.cor+'"></div>'+v.nm+' — <strong>'+v.qt+'</strong> ('+pctDev(v)+'%)</div>';}).join('')+'</div>'
     +'<div style="position:relative;height:190px"><canvas id="donut"></canvas></div>'
     +'<div style="margin-top:12px;padding:10px 14px;background:#fee2e2;border-radius:8px;font-size:12px;font-weight:600;color:#991b1b">Total: '+d.totDv+' desvios identificados</div>'
     +'</div>'
@@ -919,10 +938,16 @@ function init() {
     fetchGviz(SHEET_ID_CURVA,GID_CURVA).catch(function(e){console.warn('Curva:',e.message);return null;}),
     fetchGviz(SHEET_ID,SHEET_CONCLUIDAS).catch(function(e){console.warn('Concluídas:',e.message);return null;}),
     fetchGviz(SHEET_ID,GID_STATUS,'B10:D15').catch(function(e){console.warn('Status:',e.message);return null;}),
-    fetchGviz(SHEET_ID,'1243438454','B3:B3').catch(function(e){console.warn('DataCorte:',e.message);return null;})
+    fetchGviz(SHEET_ID,'1243438454','B3:B3').catch(function(e){console.warn('DataCorte:',e.message);return null;}),
+    fetchGviz(SHEET_ID,GID,'B17:D22').catch(function(e){console.warn('Desvios:',e.message);return null;})
   ]).then(function(results){
     try{
       var d=parseRelatorio(results[0]);
+      if(results[5]){
+        var dv=parseDesviosResp(results[5]);
+        d.devs=dv.devs;
+        d.totDv=dv.totDv;
+      }
       var atualDate=null;
       if(results[4]&&results[4][0]&&results[4][0].c&&results[4][0].c[0])atualDate=parseControlDate([results[4][0]]);
       if(!atualDate)atualDate=parseControlDate(results[0])||ts.slice(0,5);
