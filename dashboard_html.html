@@ -161,7 +161,7 @@ function fetchGviz(sheetId, sheetParam, range) {
 }
 
 function parseRelatorio(rows) {
-  var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='';
+  var rPct=82,pPct=79.5,dPct=2.55,totAc=72,atrs=26,dataAtual='',resumoTexto='';
   for (var dr=0;dr<Math.min(8,rows.length);dr++) {
     if (!rows[dr]||!rows[dr].c) continue;
     for (var dc=0;dc<rows[dr].c.length;dc++) {
@@ -173,6 +173,13 @@ function parseRelatorio(rows) {
       }
     }
     if(dataAtual) break;
+  }
+  for(var sr=0;sr<rows.length&&!resumoTexto;sr++){
+    if(!rows[sr]||!rows[sr].c)continue;
+    for(var sc=0;sc<rows[sr].c.length;sc++){
+      var sv=String(rows[sr].c[sc]?(rows[sr].c[sc].v!=null?rows[sr].c[sc].v:(rows[sr].c[sc].f||'')):'').trim();
+      if(sv.toLowerCase().indexOf('situa')>=0&&sv.toLowerCase().indexOf('geral do projeto')>=0){resumoTexto=sv;break;}
+    }
   }
   var concPos=findPos(rows,'CONCLU');
   if (concPos) {
@@ -224,7 +231,7 @@ function parseRelatorio(rows) {
     }
   }
   var allActs=top20.map(function(t){return {edt:t.edt,ativ:t.ativ,real:t.real};});
-  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,allActs:allActs,dataAtual:dataAtual};
+  return {rPct:rPct,pPct:pPct,dPct:dPct,totAc:totAc,atrs:atrs,devs:devs,totDv:totDv,top20:top20,allActs:allActs,dataAtual:dataAtual,resumoTexto:resumoTexto};
 }
 
 function parseDesviosResp(rows){
@@ -818,9 +825,42 @@ function buildConclSection(concl) {
     }).join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 
+function escHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];});
+}
+
+function firstResumoLine(text, marker, stops){
+  if(!text)return '';
+  var lower=text.toLowerCase(), idx=lower.indexOf(marker.toLowerCase());
+  if(idx<0)return '';
+  var part=text.slice(idx+marker.length);
+  var cut=part.length;
+  for(var i=0;i<stops.length;i++){
+    var p=part.toLowerCase().indexOf(stops[i].toLowerCase());
+    if(p>=0&&p<cut)cut=p;
+  }
+  part=part.slice(0,cut).split(/\r?\n/).map(function(x){return x.replace(/^[\s•\-\d.)!⚠️✅🎯📊]+/g,'').trim();}).filter(function(x){return x&&x.toLowerCase().indexOf('data base')<0;});
+  return part[0]||'';
+}
+
+function buildResumoExec(d){
+  var atrasoPct=d.totAc?Math.round(d.atrs/d.totAc*100):0;
+  var crit=d.top20&&d.top20.length?d.top20[0]:null;
+  var excelSit=firstResumoLine(d.resumoTexto,'SITUAÇÃO GERAL DO PROJETO',['ANÁLISE QUANTITATIVA','PONTOS DE ATENÇÃO','TOP 20']);
+  var excelPonto=firstResumoLine(d.resumoTexto,'PONTOS DE ATENÇÃO CRÍTICOS:',['RESPONSABILIDADE','CONQUISTAS','AÇÕES REQUERIDAS','PRÓXIMOS MARCOS']);
+  var excelAcao=firstResumoLine(d.resumoTexto,'AÇÕES REQUERIDAS PRIORITÁRIAS:',['PRÓXIMOS MARCOS','TOP 20']);
+  return {
+    situacao: escHtml(excelSit||('Avanço de '+d.rPct.toFixed(1)+'%, '+(d.dPct>=0?'superando':'abaixo em')+' '+Math.abs(d.dPct).toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). '+(d.atrs?'Projeto em reta final com '+d.atrs+' pendência crítica.':'Projeto sem atividades atrasadas.'))),
+    pontos: escHtml(excelPonto||(crit?(d.atrs+' atividade(s) atrasada(s) ('+atrasoPct+'% do total). Pendência principal: '+crit.ativ+' ('+crit.real.toFixed(0)+'% x '+crit.prev.toFixed(0)+'%).'):(d.atrs+' atividade(s) atrasada(s) ('+atrasoPct+'% do total).'))),
+    causas: escHtml(crit?((crit.obs&&crit.obs!=='—'?crit.obs:'Desvio identificado')+' — '+crit.ativ+'. Responsável: '+crit.resp+'.'):'Sem causas críticas em aberto na referência atual.'),
+    acao: escHtml(excelAcao||(crit?('Priorizar tratativa de '+crit.ativ+' junto ao responsável '+crit.resp+'.'):'Manter acompanhamento até o encerramento das atividades.'))
+  };
+}
+
 function render(d, curva, concl, ts, atualDate, sd) {
   var ahead=d.dPct>=0;
   function pctDev(v){return d.totDv?Math.round(v.qt/d.totDv*100):0;}
+  var resumo=buildResumoExec(d);
   var topRows=d.top20.map(function(t,i){
     var hasObs=t.obs&&t.obs!=='—';
     return '<tr class="data-row" onclick="toggleObs('+i+')">'
@@ -902,10 +942,10 @@ function render(d, curva, concl, ts, atualDate, sd) {
     +buildConclSection(concl)
 
     +'<div class="card-full"><div class="ct">Resumo executivo</div><div class="rs-grid">'
-    +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">Avanço de '+d.rPct.toFixed(1)+'%, superando em '+d.dPct.toFixed(2)+' p.p. o previsto ('+d.pPct.toFixed(1)+'%). Projeto adiantado.</div></div></div>'
-    +'<div class="rs-item"><div class="rs-bar" style="background:#ef4444;min-height:44px"></div><div><div class="rs-t">Pontos de atenção</div><div class="rs-p">'+d.atrs+' atividades atrasadas ('+Math.round(d.atrs/d.totAc*100)+'% do total).</div></div></div>'
-    +'<div class="rs-item"><div class="rs-bar" style="background:#f59e0b;min-height:44px"></div><div><div class="rs-t">Principais causas</div><div class="rs-p">Aguardando adequação de piso/civil (ADM Brasil). Peças e materiais não entregues no site (Elevador 2531, correntes).</div></div></div>'
-    +'<div class="rs-item"><div class="rs-bar" style="background:#2563eb;min-height:44px"></div><div><div class="rs-t">Ação requerida</div><div class="rs-p">Priorizar liberação de frentes civis, entrega do Elevador 2531 e materiais pendentes no site.</div></div></div>'
+    +'<div class="rs-item"><div class="rs-bar" style="background:#10b981;min-height:44px"></div><div><div class="rs-t">Situação geral</div><div class="rs-p">'+resumo.situacao+'</div></div></div>'
+    +'<div class="rs-item"><div class="rs-bar" style="background:#ef4444;min-height:44px"></div><div><div class="rs-t">Pontos de atenção</div><div class="rs-p">'+resumo.pontos+'</div></div></div>'
+    +'<div class="rs-item"><div class="rs-bar" style="background:#f59e0b;min-height:44px"></div><div><div class="rs-t">Principais causas</div><div class="rs-p">'+resumo.causas+'</div></div></div>'
+    +'<div class="rs-item"><div class="rs-bar" style="background:#2563eb;min-height:44px"></div><div><div class="rs-t">Ação requerida</div><div class="rs-p">'+resumo.acao+'</div></div></div>'
     +'</div></div>'
     +'<div class="card-full">'
     +'<div class="ct" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'
